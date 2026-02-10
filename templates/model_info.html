@@ -6,6 +6,35 @@
     <title>ML Model Information</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
+        body.dark-mode {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        body.dark-mode .navbar {
+            background: #2d2d2d;
+        }
+        body.dark-mode .navbar h2,
+        body.dark-mode .navbar a {
+            color: #e0e0e0;
+        }
+        body.dark-mode .info-card,
+        body.dark-mode .stat-card {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
+        body.dark-mode .info-label,
+        body.dark-mode .info-card p,
+        body.dark-mode .info-card ul,
+        body.dark-mode .info-card li {
+            color: #e0e0e0 !important;
+        }
+        body.dark-mode .page-header h1,
+        body.dark-mode .page-header p {
+            color: #e0e0e0 !important;
+        }
+        body.dark-mode .back-link {
+            color: #667eea;
+        }
         .info-container {
             max-width: 900px;
         }
@@ -85,7 +114,7 @@
         }
     </style>
 </head>
-<body class="dashboard-page">
+<body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
     <nav class="navbar">
         <div class="navbar-content">
             <h2>Flask App</h2>

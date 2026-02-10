@@ -5,8 +5,59 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body.dark-mode {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        body.dark-mode .navbar {
+            background: #2d2d2d;
+        }
+        body.dark-mode .navbar h2,
+        body.dark-mode .navbar a {
+            color: #e0e0e0;
+        }
+        body.dark-mode .card, body.dark-mode .stat-box {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
+        body.dark-mode .card h3,
+        body.dark-mode .card p,
+        body.dark-mode .stat-number,
+        body.dark-mode .stat-label {
+            color: #e0e0e0;
+        }
+        body.dark-mode .page-header h1,
+        body.dark-mode .page-header p,
+        body.dark-mode .page-header strong {
+            color: #e0e0e0 !important;
+        }
+        body.compact-view .card, body.compact-view .stat-box {
+            padding: 15px;
+        }
+        body.compact-view .card h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        body.compact-view .card p {
+            font-size: 13px;
+            margin: 5px 0;
+        }
+        body.compact-view .page-header h1 {
+            font-size: 28px;
+        }
+        body.compact-view .page-header p {
+            font-size: 14px;
+        }
+        body.compact-view .stat-number {
+            font-size: 32px;
+        }
+        body.compact-view .stat-label {
+            font-size: 12px;
+        }
+    </style>
 </head>
-<body class="dashboard-page">
+<body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
     <nav class="navbar">
         <div class="navbar-content">
             <h2>Flask App</h2>
