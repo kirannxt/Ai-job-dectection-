@@ -150,9 +150,67 @@
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
+        
+        body.dark-mode {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        body.dark-mode .navbar {
+            background: #2d2d2d;
+        }
+        body.dark-mode .navbar h2,
+        body.dark-mode .navbar a {
+            color: #e0e0e0;
+        }
+        body.dark-mode .form-section {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
+        body.dark-mode .form-section h2,
+        body.dark-mode .form-section label {
+            color: #e0e0e0;
+        }
+        body.dark-mode .page-header h1,
+        body.dark-mode .page-header p,
+        body.dark-mode .page-header a {
+            color: #e0e0e0 !important;
+        }
+        body.dark-mode textarea.form-control,
+        body.dark-mode input[type="text"] {
+            background: #1a1a1a;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+        body.compact-view .form-section {
+            padding: 20px;
+        }
+        body.compact-view .form-section h2 {
+            font-size: 20px;
+        }
+        body.compact-view .form-group label,
+        body.compact-view .form-group input,
+        body.compact-view textarea {
+            font-size: 13px;
+        }
+        body.compact-view .page-header h1 {
+            font-size: 28px;
+        }
+        body.compact-view .page-header p {
+            font-size: 14px;
+        }
+        .page-header h1 {
+            color: #333 !important;
+            display: block !important;
+            visibility: visible !important;
+        }
+        .page-header p {
+            color: #666 !important;
+            display: block !important;
+            visibility: visible !important;
+        }
     </style>
 </head>
-<body class="dashboard-page">
+<body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
     <nav class="navbar">
         <div class="navbar-content">
             <h2>Flask App</h2>

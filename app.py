@@ -1,32 +1,19 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from datetime import timedelta
-import json
-import os
 from ml_model import process_job_post, get_detector_info
+from database import create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_change_this'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
-# User storage file
-USERS_FILE = 'users.json'
 
-# Load users from file or initialize with default users
-def load_users():
-    if os.path.exists(USERS_FILE):
-        try:
-            with open(USERS_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            return {'admin': 'password123', 'user': 'user123'}
-    return {'admin': 'password123', 'user': 'user123'}
 
-# Save users to file
-def save_users(users):
-    with open(USERS_FILE, 'w') as f:
-        json.dump(users, f)
-
-USERS = load_users()
+@app.context_processor
+def inject_preferences():
+    if 'username' in session:
+        return {'user_preferences': get_user_preferences(session['username'])}
+    return {'user_preferences': {'dark_mode': 0, 'compact_view': 0}}
 
 @app.before_request
 def make_session_permanent():
@@ -46,9 +33,9 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Check credentials
-        if username in USERS and USERS[username] == password:
+        if verify_user(username, password):
             session['username'] = username
+            log_activity(username, 'login', 'Logged in')
             return redirect(url_for('dashboard'))
         else:
             error = 'Invalid username or password'
@@ -64,7 +51,6 @@ def register():
         confirm_password = request.form.get('confirm_password', '')
         error = None
         
-        # Validation
         if not username:
             error = 'Username is required'
         elif not password:
@@ -75,17 +61,15 @@ def register():
             error = 'Username must be at least 3 characters long'
         elif len(password) < 6:
             error = 'Password must be at least 6 characters long'
-        elif username in USERS:
-            error = 'Username already exists'
         
         if error:
             return render_template('register.html', error=error)
         
-        # Add new user
-        USERS[username] = password
-        save_users(USERS)
+        if not create_user(username, password):
+            error = 'Username already exists'
+            return render_template('register.html', error=error)
         
-        # Log the user in
+        log_activity(username, 'register', 'Account created')
         session['username'] = username
         return redirect(url_for('dashboard'))
     
@@ -103,14 +87,25 @@ def profile():
     if 'username' not in session:
         return redirect(url_for('login'))
     
-    return render_template('profile.html', username=session['username'])
+    user_data = get_user_profile(session['username'])
+    recent_activities = get_user_activities(session['username'], limit=4)
+    
+    return render_template('profile.html', user=user_data, recent_activities=recent_activities)
 
-@app.route('/settings')
+@app.route('/settings', methods=['GET', 'POST'])
 def settings():
     if 'username' not in session:
         return redirect(url_for('login'))
     
-    return render_template('settings.html', username=session['username'])
+    if request.method == 'POST':
+        dark_mode = int(request.form.get('dark_mode', 0))
+        compact_view = int(request.form.get('compact_view', 0))
+        save_user_preferences(session['username'], dark_mode, compact_view)
+        log_activity(session['username'], 'settings', 'Updated appearance settings')
+        return redirect(url_for('settings'))
+    
+    preferences = get_user_preferences(session['username'])
+    return render_template('settings.html', username=session['username'], preferences=preferences)
 
 @app.route('/logout')
 def logout():
@@ -135,8 +130,19 @@ def job_post_detector():
             error = 'Please fill in all required fields'
             return render_template('job_post_detector.html', username=session['username'], error=error)
         
-        # Get prediction from ML model in separate file
         result = process_job_post(job_description, job_title, company_name, salary)
+        
+        if result:
+            save_job_detection(
+                session['username'],
+                job_title,
+                company_name,
+                job_description,
+                salary,
+                location,
+                result.get('prediction', 'Unknown'),
+                result.get('confidence', 0.0)
+            )
     
     # Get model information
     model_info = get_detector_info()

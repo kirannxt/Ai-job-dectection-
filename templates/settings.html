@@ -5,8 +5,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body.dark-mode {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        body.dark-mode .navbar {
+            background: #2d2d2d;
+        }
+        body.dark-mode .navbar h2,
+        body.dark-mode .navbar a {
+            color: #e0e0e0;
+        }
+        body.dark-mode .card {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
+        body.dark-mode .card h3,
+        body.dark-mode .card p,
+        body.dark-mode .card strong,
+        body.dark-mode .card span,
+        body.dark-mode .card label {
+            color: #e0e0e0;
+        }
+        body.dark-mode .page-header h1,
+        body.dark-mode .page-header p,
+        body.dark-mode .page-header strong {
+            color: #e0e0e0 !important;
+        }
+        body.compact-view .card {
+            padding: 15px;
+        }
+        body.compact-view .card h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        body.compact-view .card p,
+        body.compact-view .card label,
+        body.compact-view .card span {
+            font-size: 13px;
+            margin: 5px 0;
+        }
+        body.compact-view .page-header h1 {
+            font-size: 28px;
+        }
+        body.compact-view .page-header p {
+            font-size: 14px;
+        }
+    </style>
 </head>
-<body class="dashboard-page">
+<body class="dashboard-page{% if preferences.dark_mode %} dark-mode{% endif %}{% if preferences.compact_view %} compact-view{% endif %}">
     <nav class="navbar">
         <div class="navbar-content">
             <h2>Flask App</h2>
@@ -29,19 +77,31 @@
         <div class="content-grid">
             <div class="card">
                 <h3>Appearance</h3>
-                <div class="form-group" style="margin: 15px 0;">
-                    <label style="display: flex; align-items: center;">
-                        <input type="checkbox" checked style="width: auto; margin-right: 10px;">
-                        <span>Dark Mode</span>
-                    </label>
-                </div>
-                <div class="form-group" style="margin: 15px 0;">
-                    <label style="display: flex; align-items: center;">
-                        <input type="checkbox" checked style="width: auto; margin-right: 10px;">
-                        <span>Compact View</span>
-                    </label>
-                </div>
-                <button class="btn">Save Changes</button>
+                <form method="POST">
+                    <div class="form-group" style="margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 10px;"><strong>Theme:</strong></label>
+                        <label style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <input type="radio" name="dark_mode" value="0" {% if not preferences.dark_mode %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Light Mode</span>
+                        </label>
+                        <label style="display: flex; align-items: center;">
+                            <input type="radio" name="dark_mode" value="1" {% if preferences.dark_mode %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Dark Mode</span>
+                        </label>
+                    </div>
+                    <div class="form-group" style="margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 10px;"><strong>View:</strong></label>
+                        <label style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <input type="radio" name="compact_view" value="0" {% if not preferences.compact_view %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Normal View</span>
+                        </label>
+                        <label style="display: flex; align-items: center;">
+                            <input type="radio" name="compact_view" value="1" {% if preferences.compact_view %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Compact View</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="btn">Save Changes</button>
+                </form>
             </div>
             
             <div class="card">

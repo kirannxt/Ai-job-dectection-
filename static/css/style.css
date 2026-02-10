@@ -154,13 +154,28 @@ body.dashboard-page {
     margin-bottom: 30px;
 }
 
+body.dark-mode .page-header {
+    background: #2d2d2d;
+}
+
+body.dark-mode .page-header h1,
+body.dark-mode .page-header p,
+body.dark-mode .page-header strong,
+body.dark-mode .page-header a {
+    color: #e0e0e0 !important;
+}
+
 .page-header h1 {
-    color: #333;
+    color: #333 !important;
     margin-bottom: 10px;
+    display: block !important;
+    visibility: visible !important;
 }
 
 .page-header p {
-    color: #666;
+    color: #666 !important;
+    display: block !important;
+    visibility: visible !important;
 }
 
 .content-grid {

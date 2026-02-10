@@ -5,8 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body.dark-mode {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        body.dark-mode .navbar {
+            background: #2d2d2d;
+        }
+        body.dark-mode .navbar h2,
+        body.dark-mode .navbar a {
+            color: #e0e0e0;
+        }
+        body.dark-mode .card {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
+        body.dark-mode .card h3,
+        body.dark-mode .card p,
+        body.dark-mode .card strong,
+        body.dark-mode .card li {
+            color: #e0e0e0;
+        }
+        body.dark-mode .page-header h1,
+        body.dark-mode .page-header p,
+        body.dark-mode .page-header strong {
+            color: #e0e0e0 !important;
+        }
+        body.compact-view .card {
+            padding: 15px;
+        }
+        body.compact-view .card h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        body.compact-view .card p {
+            font-size: 13px;
+            margin: 5px 0;
+        }
+        body.compact-view .page-header h1 {
+            font-size: 28px;
+        }
+        body.compact-view .page-header p {
+            font-size: 14px;
+        }
+    </style>
 </head>
-<body class="dashboard-page">
+<body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
     <nav class="navbar">
         <div class="navbar-content">
             <h2>Flask App</h2>
@@ -29,9 +74,10 @@
         <div class="content-grid">
             <div class="card">
                 <h3>Account Information</h3>
-                <p><strong>Username:</strong> {{ username }}</p>
+                <p><strong>Username:</strong> {{ user.username }}</p>
                 <p><strong>Account Status:</strong> Active</p>
-                <p><strong>Member Since:</strong> January 2024</p>
+                <p><strong>Member Since:</strong> {{ user.created_at[:10] }}</p>
+                <p><strong>Total Detections:</strong> {{ user.total_detections }}</p>
                 <button class="btn" style="margin-top: 15px;">Edit Profile</button>
             </div>
             
@@ -55,12 +101,15 @@
         <div class="content-grid" style="margin-top: 30px;">
             <div class="card">
                 <h3>Recent Activity</h3>
+                {% if recent_activities %}
                 <ul style="color: #666;">
-                    <li>✓ Logged in - Today 10:30 AM</li>
-                    <li>✓ Updated profile - Yesterday 3:45 PM</li>
-                    <li>✓ Changed password - 3 days ago</li>
-                    <li>✓ Enabled notifications - 1 week ago</li>
+                    {% for activity in recent_activities %}
+                    <li>✓ {{ activity.description }} - {{ activity.created_at[:16].replace('T', ' ') }}</li>
+                    {% endfor %}
                 </ul>
+                {% else %}
+                <p style="color: #666;">No recent activity</p>
+                {% endif %}
             </div>
             
             <div class="card">
