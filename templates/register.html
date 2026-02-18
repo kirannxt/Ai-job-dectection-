@@ -6,7 +6,7 @@
     <title>Flask App - Register</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="auth-page">
     <div class="login-container">
         <h1>Create Account</h1>
         
@@ -31,8 +31,8 @@
             </div>
             
             <div class="form-group">
-                <label for="user_name">User name</label>
-                <input type="text" name="user_name" name="user_name" required>
+                <label for="username">User name</label>
+                <input type="text" id="username" name="username" required>
             </div>
             
             <div class="form-group">

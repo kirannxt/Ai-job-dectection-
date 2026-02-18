@@ -6,7 +6,7 @@
     <title>Flask App - Login</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="auth-page">
     <div class="login-container">
         <h1>Welcome</h1>
         
@@ -30,12 +30,6 @@
         
         <p style="text-align: center; margin-top: 20px; color: #666;">
             Don't have an account? <a href="{{ url_for('register') }}" style="color: #667eea; text-decoration: none; font-weight: 600;">Register here</a>
-        </p>
-        
-        <p style="text-align: center; margin-top: 20px; color: #666;">
-            Demo Credentials:<br>
-            Username: <strong>admin</strong> | Password: <strong>password123</strong><br>
-            Username: <strong>user</strong> | Password: <strong>user123</strong>
         </p>
     </div>
 </body>
