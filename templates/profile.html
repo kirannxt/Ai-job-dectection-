@@ -49,6 +49,67 @@
         body.compact-view .page-header p {
             font-size: 14px;
         }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+        }
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+        }
+        body.dark-mode .modal-content {
+            background: #2d2d2d;
+        }
+        .close {
+            position: absolute;
+            right: 15px;
+            top: 15px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #999;
+        }
+        .close:hover {
+            color: #333;
+        }
+        body.dark-mode .close:hover {
+            color: #e0e0e0;
+        }
+        .modal h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        body.dark-mode .modal h2 {
+            color: #e0e0e0;
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 2000;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
     </style>
 </head>
 <body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
@@ -74,11 +135,11 @@
         <div class="content-grid">
             <div class="card">
                 <h3>Account Information</h3>
-                <p><strong>Username:</strong> {{ user.username }}</p>
+                <p><strong>Username:</strong> <span id="displayUsername">{{ user.username }}</span></p>
                 <p><strong>Account Status:</strong> Active</p>
                 <p><strong>Member Since:</strong> {{ user.created_at[:10] }}</p>
                 <p><strong>Total Detections:</strong> {{ user.total_detections }}</p>
-                <button class="btn" style="margin-top: 15px;">Edit Profile</button>
+                <button class="btn" style="margin-top: 15px;" onclick="openModal('accountModal')">Edit Profile</button>
             </div>
             
             <div class="card">
@@ -86,15 +147,15 @@
                 <p><strong>Password:</strong> ••••••••••</p>
                 <p><strong>Two-Factor Auth:</strong> Disabled</p>
                 <p><strong>Last Login:</strong> Today at 10:30 AM</p>
-                <button class="btn" style="margin-top: 15px;">Change Password</button>
+                <button class="btn" style="margin-top: 15px;" onclick="openModal('securityModal')">Change Password</button>
             </div>
             
             <div class="card">
                 <h3>Contact Information</h3>
-                <p><strong>Email:</strong> {{ username }}@example.com</p>
-                <p><strong>Phone:</strong> Not set</p>
-                <p><strong>Country:</strong> United States</p>
-                <button class="btn" style="margin-top: 15px;">Update Contact</button>
+                <p><strong>Email:</strong> <span id="displayEmail">{{ username }}@example.com</span></p>
+                <p><strong>Phone:</strong> <span id="displayPhone">Not set</span></p>
+                <p><strong>Country:</strong> <span id="displayCountry">United States</span></p>
+                <button class="btn" style="margin-top: 15px;" onclick="openModal('contactModal')">Update Contact</button>
             </div>
         </div>
 
@@ -121,5 +182,174 @@
             </div>
         </div>
     </div>
+
+    <!-- Account Modal -->
+    <div id="accountModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('accountModal')">&times;</span>
+            <h2>Edit Account Information</h2>
+            <form onsubmit="updateAccount(event)">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="username" value="{{ user.username }}">
+                </div>
+                <button type="submit" class="btn">Update Account</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Security Modal -->
+    <div id="securityModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('securityModal')">&times;</span>
+            <h2>Change Password</h2>
+            <form onsubmit="updatePassword(event)">
+                <div class="form-group">
+                    <label>Current Password</label>
+                    <input type="password" id="currentPassword">
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" id="newPassword">
+                </div>
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" id="confirmPassword">
+                </div>
+                <button type="submit" class="btn">Change Password</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contactModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('contactModal')">&times;</span>
+            <h2>Update Contact Information</h2>
+            <form onsubmit="updateContact(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="email" value="{{ username }}@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" id="phone" placeholder="Not set">
+                </div>
+                <div class="form-group">
+                    <label>Country</label>
+                    <input type="text" id="country" value="United States">
+                </div>
+                <button type="submit" class="btn">Update Contact</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        function openModal(id) {
+            document.getElementById(id).style.display = 'block';
+        }
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+        function updateAccount(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            console.log('Updating username to:', username);
+            fetch('/update-profile', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username})
+            })
+            .then(res => {
+                console.log('Response status:', res.status);
+                return res.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                if(data.success) {
+                    document.getElementById('displayUsername').textContent = data.username;
+                    console.log('Updated display to:', data.username);
+                    closeModal('accountModal');
+                    showToast('Account updated successfully!');
+                } else {
+                    showToast(data.message || 'Update failed');
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                showToast('Error updating account');
+            });
+        }
+        function updatePassword(e) {
+            e.preventDefault();
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            if(newPassword !== confirmPassword) {
+                showToast('Passwords do not match');
+                return;
+            }
+            fetch('/update-password', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({newPassword})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    closeModal('securityModal');
+                    showToast('Password updated successfully!');
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                } else {
+                    showToast(data.message || 'Update failed');
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                showToast('Error updating password');
+            });
+        }
+        function updateContact(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const phone = document.getElementById('phone').value;
+            const country = document.getElementById('country').value;
+            fetch('/update-contact', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, phone, country})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    document.getElementById('displayEmail').textContent = data.email;
+                    document.getElementById('displayPhone').textContent = data.phone || 'Not set';
+                    document.getElementById('displayCountry').textContent = data.country;
+                    closeModal('contactModal');
+                    showToast('Contact information updated successfully!');
+                } else {
+                    showToast(data.message || 'Update failed');
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                showToast('Error updating contact');
+            });
+        }
+    </script>
 </body>
 </html>

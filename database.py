@@ -77,6 +77,14 @@ def create_user(username, password):
     finally:
         conn.close()
 
+def user_exists(username):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+    user = cursor.fetchone()
+    conn.close()
+    return user is not None
+
 def verify_user(username, password):
     conn = get_db()
     cursor = conn.cursor()
@@ -201,6 +209,26 @@ def save_user_preferences(username, dark_mode, compact_view):
         INSERT OR REPLACE INTO user_preferences (user_id, dark_mode, compact_view)
         VALUES (?, ?, ?)
     ''', (user_id, dark_mode, compact_view))
+    conn.commit()
+    conn.close()
+    return True
+
+def update_username(old_username, new_username):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('UPDATE users SET username = ? WHERE username = ?', (new_username, old_username))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+def update_password(username, new_password):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET password = ? WHERE username = ?', (hash_password(new_password), username))
     conn.commit()
     conn.close()
     return True

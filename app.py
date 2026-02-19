@@ -1,7 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from datetime import timedelta
 from ml_model import process_job_post, get_detector_info
-from database import create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences
+from database import create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_change_this'
@@ -43,6 +43,22 @@ def login():
     
     return render_template('login.html')
 
+@app.route('/check-username', methods=['POST'])
+def check_username():
+    username = request.json.get('username')
+    exists = user_exists(username)
+    return jsonify({'exists': exists})
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        if username and user_exists(username):
+            return render_template('forgot_password.html', success='Password reset instructions would be sent to your email')
+        else:
+            return render_template('forgot_password.html', error='Username not found')
+    return render_template('forgot_password.html')
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -70,8 +86,7 @@ def register():
             return render_template('register.html', error=error)
         
         log_activity(username, 'register', 'Account created')
-        session['username'] = username
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('login'))
     
     return render_template('register.html')
 
@@ -80,7 +95,8 @@ def dashboard():
     if 'username' not in session:
         return redirect(url_for('login'))
     
-    return render_template('dashboard.html', username=session['username'])
+    recent_activities = get_user_activities(session['username'], limit=5)
+    return render_template('dashboard.html', username=session['username'], recent_activities=recent_activities)
 
 @app.route('/profile')
 def profile():
@@ -90,7 +106,41 @@ def profile():
     user_data = get_user_profile(session['username'])
     recent_activities = get_user_activities(session['username'], limit=4)
     
-    return render_template('profile.html', user=user_data, recent_activities=recent_activities)
+    return render_template('profile.html', user=user_data, recent_activities=recent_activities, username=session['username'])
+
+@app.route('/update-profile', methods=['POST'])
+def update_profile():
+    if 'username' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    new_username = request.json.get('username')
+    if new_username and new_username != session['username']:
+        if update_username(session['username'], new_username):
+            session['username'] = new_username
+            log_activity(new_username, 'profile', 'Updated username')
+            return jsonify({'success': True, 'username': new_username})
+        return jsonify({'success': False, 'message': 'Username already exists'})
+    return jsonify({'success': True, 'username': session['username']})
+
+@app.route('/update-password', methods=['POST'])
+def update_password_route():
+    if 'username' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    new_password = request.json.get('newPassword')
+    if new_password:
+        update_password(session['username'], new_password)
+        log_activity(session['username'], 'security', 'Changed password')
+        return jsonify({'success': True})
+    return jsonify({'success': False, 'message': 'Invalid password'})
+
+@app.route('/update-contact', methods=['POST'])
+def update_contact():
+    if 'username' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    log_activity(session['username'], 'profile', 'Updated contact information')
+    return jsonify({'success': True, 'email': request.json.get('email'), 'phone': request.json.get('phone'), 'country': request.json.get('country')})
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -143,6 +193,7 @@ def job_post_detector():
                 result.get('prediction', 'Unknown'),
                 result.get('confidence', 0.0)
             )
+            log_activity(session['username'], 'detection', f'Analyzed job post: {job_title}')
     
     # Get model information
     model_info = get_detector_info()

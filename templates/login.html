@@ -14,23 +14,94 @@
             <div class="error">{{ error }}</div>
         {% endif %}
         
-        <form method="POST" action="{{ url_for('login') }}">
+        <form method="POST" action="{{ url_for('login') }}" id="loginForm">
             <div class="form-group">
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" required>
+                <span id="usernameError" style="color: red; font-size: 12px; display: none;"></span>
             </div>
             
-            <div class="form-group">
+            <div class="form-group" id="passwordGroup" style="display: none;">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password">
+                <span id="passwordError" style="color: red; font-size: 12px; display: none;"></span>
             </div>
             
-            <button type="submit" class="btn">Login</button>
+            <button type="button" id="continueBtn" class="btn">Continue</button>
+            <button type="submit" id="loginBtn" class="btn" style="display: none;">Login</button>
         </form>
         
         <p style="text-align: center; margin-top: 20px; color: #666;">
             Don't have an account? <a href="{{ url_for('register') }}" style="color: #667eea; text-decoration: none; font-weight: 600;">Register here</a>
         </p>
+        
+        <p style="text-align: center; margin-top: 10px; color: #666;">
+            <a href="{{ url_for('forgot_password') }}" style="color: #667eea; text-decoration: none; font-weight: 600;">Forgot Password?</a>
+        </p>
     </div>
+
+    <script>
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const passwordGroup = document.getElementById('passwordGroup');
+        const continueBtn = document.getElementById('continueBtn');
+        const loginBtn = document.getElementById('loginBtn');
+        const usernameError = document.getElementById('usernameError');
+        const passwordError = document.getElementById('passwordError');
+
+        continueBtn.addEventListener('click', async () => {
+            const username = usernameInput.value.trim();
+            
+            if (!username) {
+                usernameError.textContent = 'Username is required';
+                usernameError.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch('{{ url_for("check_username") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                const data = await response.json();
+
+                if (data.exists) {
+                    usernameError.style.display = 'none';
+                    usernameInput.readOnly = true;
+                    passwordGroup.style.display = 'block';
+                    continueBtn.style.display = 'none';
+                    loginBtn.style.display = 'block';
+                    passwordInput.focus();
+                } else {
+                    usernameError.textContent = 'Username does not exist';
+                    usernameError.style.display = 'block';
+                }
+            } catch (error) {
+                usernameError.textContent = 'Error validating username';
+                usernameError.style.display = 'block';
+            }
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            const password = passwordInput.value;
+            
+            if (password.length < 6) {
+                e.preventDefault();
+                passwordError.textContent = 'Password must be at least 6 characters';
+                passwordError.style.display = 'block';
+                return false;
+            }
+            passwordError.style.display = 'none';
+        });
+
+        usernameInput.addEventListener('input', () => {
+            usernameError.style.display = 'none';
+        });
+
+        passwordInput.addEventListener('input', () => {
+            passwordError.style.display = 'none';
+        });
+    </script>
 </body>
 </html>
