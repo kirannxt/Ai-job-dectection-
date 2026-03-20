@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body.dark-mode { background:#1a1a1a; color:#e0e0e0; }
+        body.dark-mode .navbar { background:#2d2d2d; }
+        body.dark-mode .navbar h2, body.dark-mode .navbar a { color:#e0e0e0; }
+        body.dark-mode .card { background:#2d2d2d; color:#e0e0e0; }
+        body.dark-mode .page-header h1, body.dark-mode .page-header p { color:#e0e0e0 !important; }
+        body.dark-mode table { color:#e0e0e0; }
+        body.dark-mode td, body.dark-mode th { border-color:#444; }
+
+        .file-table { width:100%; border-collapse:collapse; margin-top:15px; }
+        .file-table th, .file-table td { padding:10px 12px; border:1px solid #dee2e6; text-align:left; font-size:14px; }
+        .file-table th { background:#667eea; color:#fff; }
+        .file-table tr:nth-child(even) { background:#f8f9fa; }
+        body.dark-mode .file-table tr:nth-child(even) { background:#252525; }
+        body.dark-mode .file-table td { border-color:#444; }
+
+        .btn-sm { padding:5px 14px; font-size:13px; border:none; border-radius:4px; cursor:pointer; font-weight:500; }
+        .btn-danger { background:#dc3545; color:#fff; }
+        .btn-view   { background:#667eea; color:#fff; }
+        .btn-dl     { background:#17a2b8; color:#fff; }
+        .btn-new    { background:#28a745; color:#fff; }
+
+        .files-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+
+        /* upload form inside files card — hidden by default */
+        #inline-upload { display:none; margin-top:20px; padding-top:16px; border-top:1px solid #dee2e6; }
+        body.dark-mode #inline-upload { border-color:#444; }
+
+        #view-section { display:none; margin-top:30px; }
+        .view-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+        .view-header span { font-weight:600; font-size:15px; }
+
+        .view-table { border-collapse:collapse; min-width:100%; font-size:13px; }
+        .view-table th { background:#667eea; color:#fff; padding:8px 10px; border:1px solid #5a6fd6; white-space:nowrap; }
+        .view-table td { padding:6px 10px; border:1px solid #dee2e6; white-space:nowrap; }
+        body.dark-mode .view-table td { border-color:#444; }
+        .view-table tr:nth-child(even) td { background:#f8f9fa; }
+        body.dark-mode .view-table tr:nth-child(even) td { background:#252525; }
+        .view-table-wrap { overflow-x:auto; margin-top:12px; }
+
+        .alert { padding:10px 15px; border-radius:5px; margin-bottom:12px; font-size:14px; }
+        .alert-danger { background:#f8d7da; color:#721c24; }
+        body.dark-mode .alert-danger { background:#4d1e22; color:#f5a3a7; }
+    </style>
+</head>
+<body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
+    <nav class="navbar">
+        <div class="navbar-content">
+            <h2>Flask App</h2>
+            <ul class="navbar-menu">
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('profile') }}">Profile</a></li>
+                <li><a href="{{ url_for('job_post_detector') }}">Job Detector</a></li>
+                <li><a href="{{ url_for('upload') }}">File Manager</a></li>
+                <li><a href="{{ url_for('settings') }}">Settings</a></li>
+                <li><a href="{{ url_for('logout') }}" class="logout">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-header">
+            <h1>File Manager</h1>
+            <p>Upload and manage your Excel files.</p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        {% if user_csvs %}
+        <!-- RETURNING USER: files list + hidden upload form -->
+        <div class="card" id="files-card">
+            <div class="files-header">
+                <h3>Your Uploaded Files</h3>
+                <button class="btn-sm btn-new" onclick="toggleUpload()">+ Upload New File</button>
+            </div>
+
+            <!-- inline upload form, hidden by default -->
+            <div id="inline-upload">
+                <p style="font-size:13px;color:#888;margin-bottom:8px;">Only Excel files are accepted (.xls, .xlsx)</p>
+                <form method="POST" enctype="multipart/form-data"
+                      style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;"
+                      onsubmit="return validateFile(event)">
+                    <input type="file" name="csv_file" id="csv_file" required style="flex:1;min-width:220px;">
+                    <button type="submit" class="btn">Upload</button>
+                    <button type="button" class="btn-sm btn-danger" onclick="toggleUpload()">Cancel</button>
+                </form>
+                <p id="file-error" style="color:#dc3545;font-size:13px;margin-top:8px;display:none;"></p>
+            </div>
+
+            <table class="file-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Filename</th>
+                        <th>Uploaded At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in user_csvs %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ f.original_filename }}</td>
+                        <td>{{ f.uploaded_at }}</td>
+                        <td style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button class="btn-sm btn-view"
+                                    onclick="viewFile({{ f.id }}, '{{ f.original_filename }}')">View</button>
+                            <a href="{{ url_for('csv_download', csv_id=f.id) }}"
+                               class="btn-sm btn-dl" style="text-decoration:none;">Download</a>
+                            <form method="POST" action="{{ url_for('csv_delete', csv_id=f.id) }}"
+                                  style="margin:0;" onsubmit="return confirm('Delete this file?')">
+                                <button type="submit" class="btn-sm btn-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% else %}
+        <!-- FIRST TIME USER: upload form only -->
+        <div class="card" id="upload-card">
+            <h3>Upload File</h3>
+            <p style="font-size:13px;color:#888;margin-top:6px;">Only Excel files are accepted (.xls, .xlsx)</p>
+            <form method="POST" enctype="multipart/form-data"
+                  style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px;"
+                  onsubmit="return validateFile(event)">
+                <input type="file" name="csv_file" id="csv_file" required style="flex:1;min-width:220px;">
+                <button type="submit" class="btn">Upload</button>
+            </form>
+            <p id="file-error" style="color:#dc3545;font-size:13px;margin-top:8px;display:none;"></p>
+        </div>
+        {% endif %}
+
+        <!-- VIEW SECTION: shown only on View click -->
+        <div id="view-section" class="card">
+            <div class="view-header">
+                <span id="view-title">Viewing: </span>
+                <button class="btn-sm btn-danger" onclick="closeView()">Close</button>
+            </div>
+            <div id="view-loading" style="text-align:center;padding:30px;color:#888;display:none;">Loading…</div>
+            <div class="view-table-wrap" id="view-table-wrap">
+                <table class="view-table" id="view-table"></table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleUpload() {
+            const el = document.getElementById('inline-upload');
+            el.style.display = el.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function viewFile(id, name) {
+            const section = document.getElementById('view-section');
+            document.getElementById('view-title').textContent = 'Viewing: ' + name;
+            document.getElementById('view-table').innerHTML = '';
+            document.getElementById('view-loading').style.display = 'block';
+            document.getElementById('view-table-wrap').style.display = 'none';
+
+            const filesCard = document.getElementById('files-card');
+            const uploadCard = document.getElementById('upload-card');
+            if (filesCard) filesCard.style.display = 'none';
+            if (uploadCard) uploadCard.style.display = 'none';
+
+            section.style.display = 'block';
+            section.scrollIntoView({behavior: 'smooth'});
+
+            fetch('/csv/view/' + id)
+                .then(r => r.json())
+                .then(data => {
+                    const table = document.getElementById('view-table');
+                    data.rows.forEach((row, ri) => {
+                        const tr = document.createElement('tr');
+                        row.forEach(cell => {
+                            const td = document.createElement(ri === 0 ? 'th' : 'td');
+                            td.textContent = cell;
+                            tr.appendChild(td);
+                        });
+                        table.appendChild(tr);
+                    });
+                    document.getElementById('view-loading').style.display = 'none';
+                    document.getElementById('view-table-wrap').style.display = 'block';
+                })
+                .catch(() => {
+                    document.getElementById('view-loading').textContent = 'Failed to load file.';
+                });
+        }
+
+        function closeView() {
+            document.getElementById('view-section').style.display = 'none';
+            const filesCard = document.getElementById('files-card');
+            const uploadCard = document.getElementById('upload-card');
+            if (filesCard) filesCard.style.display = 'block';
+            if (uploadCard) uploadCard.style.display = 'block';
+        }
+
+        function validateFile(e) {
+            const input = document.getElementById('csv_file');
+            const errEl = document.getElementById('file-error');
+            if (!input.files.length) return true;
+            const name = input.files[0].name;
+            const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
+            const messages = {
+                '.pdf':  'PDF files are not allowed. Please upload an Excel file (.xls or .xlsx).',
+                '.doc':  'Word documents are not allowed. Please upload an Excel file (.xls or .xlsx).',
+                '.docx': 'Word documents are not allowed. Please upload an Excel file (.xls or .xlsx).',
+                '.csv':  'CSV files are not allowed. Please upload an Excel file (.xls or .xlsx).',
+                '.txt':  'Text files are not allowed. Please upload an Excel file (.xls or .xlsx).',
+                '.png':  'Image files are not allowed. Please upload an Excel file (.xls or .xlsx).',
+                '.jpg':  'Image files are not allowed. Please upload an Excel file (.xls or .xlsx).',
+                '.jpeg': 'Image files are not allowed. Please upload an Excel file (.xls or .xlsx).',
+                '.ppt':  'PowerPoint files are not allowed. Please upload an Excel file (.xls or .xlsx).',
+                '.pptx': 'PowerPoint files are not allowed. Please upload an Excel file (.xls or .xlsx).'
+            };
+            if (ext !== '.xls' && ext !== '.xlsx') {
+                e.preventDefault();
+                errEl.textContent = messages[ext] || '"' + ext + '" files are not allowed. Please upload an Excel file (.xls or .xlsx).';
+                errEl.style.display = 'block';
+                input.value = '';
+                return false;
+            }
+            errEl.style.display = 'none';
+            return true;
+        }
+    </script>
+</body>
+</html>

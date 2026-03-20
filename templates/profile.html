@@ -120,6 +120,7 @@
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('profile') }}">Profile</a></li>
                 <li><a href="{{ url_for('job_post_detector') }}">Job Detector</a></li>
+                <li><a href="{{ url_for('upload') }}">File Manager</a></li>
                 <li><a href="{{ url_for('settings') }}">Settings</a></li>
                 <li><a href="{{ url_for('logout') }}" class="logout">Logout</a></li>
             </ul>
@@ -136,9 +137,9 @@
             <div class="card">
                 <h3>Account Information</h3>
                 <p><strong>Username:</strong> <span id="displayUsername">{{ user.username }}</span></p>
-                <p><strong>Account Status:</strong> Active</p>
-                <p><strong>Member Since:</strong> {{ user.created_at[:10] }}</p>
-                <p><strong>Total Detections:</strong> {{ user.total_detections }}</p>
+                <p><strong>Account Status:</strong> <span id="displayStatus">Active</span></p>
+                <p><strong>Member Since:</strong> <span id="displayMemberSince">{{ user.created_at[:10] }}</span></p>
+                <p><strong>Total Detections:</strong> <span id="displayDetections">{{ user.total_detections }}</span></p>
                 <button class="btn" style="margin-top: 15px;" onclick="openModal('accountModal')">Edit Profile</button>
             </div>
             
@@ -192,6 +193,22 @@
                 <div class="form-group">
                     <label>Username</label>
                     <input type="text" id="username" value="{{ user.username }}">
+                </div>
+                <div class="form-group">
+                    <label>Account Status</label>
+                    <select id="accountStatus" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Suspended">Suspended</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Member Since</label>
+                    <input type="date" id="memberSince" value="{{ user.created_at[:10] }}">
+                </div>
+                <div class="form-group">
+                    <label>Total Detections</label>
+                    <input type="number" id="totalDetections" value="{{ user.total_detections }}" min="0">
                 </div>
                 <button type="submit" class="btn">Update Account</button>
             </form>
@@ -267,21 +284,22 @@
         function updateAccount(e) {
             e.preventDefault();
             const username = document.getElementById('username').value;
-            console.log('Updating username to:', username);
+            const accountStatus = document.getElementById('accountStatus').value;
+            const memberSince = document.getElementById('memberSince').value;
+            const totalDetections = document.getElementById('totalDetections').value;
+            
             fetch('/update-profile', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username})
+                body: JSON.stringify({username, accountStatus, memberSince, totalDetections})
             })
-            .then(res => {
-                console.log('Response status:', res.status);
-                return res.json();
-            })
+            .then(res => res.json())
             .then(data => {
-                console.log('Response data:', data);
                 if(data.success) {
                     document.getElementById('displayUsername').textContent = data.username;
-                    console.log('Updated display to:', data.username);
+                    document.getElementById('displayStatus').textContent = data.accountStatus;
+                    document.getElementById('displayMemberSince').textContent = data.memberSince;
+                    document.getElementById('displayDetections').textContent = data.totalDetections;
                     closeModal('accountModal');
                     showToast('Account updated successfully!');
                 } else {
