@@ -55,6 +55,45 @@
         body.compact-view .stat-label {
             font-size: 12px;
         }
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .activity-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+        body.dark-mode .activity-item {
+            background: #1a1a1a;
+        }
+        .activity-type {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #667eea;
+            color: white;
+            border-radius: 3px;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .activity-item p {
+            margin: 8px 0 5px 0;
+            color: #333;
+        }
+        body.dark-mode .activity-item p {
+            color: #e0e0e0;
+        }
+        .activity-item small {
+            color: #666;
+            font-size: 12px;
+        }
+        body.dark-mode .activity-item small {
+            color: #999;
+        }
     </style>
 </head>
 <body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
@@ -65,6 +104,7 @@
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('profile') }}">Profile</a></li>
                 <li><a href="{{ url_for('job_post_detector') }}">Job Detector</a></li>
+                <li><a href="{{ url_for('upload') }}">File Manager</a></li>
                 <li><a href="{{ url_for('settings') }}">Settings</a></li>
                 <li><a href="{{ url_for('logout') }}" class="logout">Logout</a></li>
             </ul>
@@ -99,7 +139,19 @@
         <div class="content-grid" style="margin-top: 30px;">
             <div class="card">
                 <h3>Recent Activity</h3>
-                <p>You have 3 new notifications. Check your profile page for more details about your recent activities and updates.</p>
+                {% if recent_activities %}
+                    <div class="activity-list">
+                        {% for activity in recent_activities %}
+                        <div class="activity-item">
+                            <span class="activity-type">{{ activity.activity_type }}</span>
+                            <p>{{ activity.description }}</p>
+                            <small>{{ activity.created_at }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p>No recent activities yet. Start using the app to see your activity history!</p>
+                {% endif %}
             </div>
             <div class="card">
                 <h3>Quick Links</h3>

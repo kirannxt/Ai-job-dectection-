@@ -58,6 +58,17 @@ def init_db():
         )
     ''')
     
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS csv_uploads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            original_filename TEXT NOT NULL,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -76,6 +87,14 @@ def create_user(username, password):
         return False
     finally:
         conn.close()
+
+def user_exists(username):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+    user = cursor.fetchone()
+    conn.close()
+    return user is not None
 
 def verify_user(username, password):
     conn = get_db()
@@ -204,5 +223,69 @@ def save_user_preferences(username, dark_mode, compact_view):
     conn.commit()
     conn.close()
     return True
+
+def update_username(old_username, new_username):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('UPDATE users SET username = ? WHERE username = ?', (new_username, old_username))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+def update_password(username, new_password):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET password = ? WHERE username = ?', (hash_password(new_password), username))
+    conn.commit()
+    conn.close()
+    return True
+
+def save_csv_upload(username, filename, original_filename):
+    user_id = get_user_id(username)
+    if not user_id:
+        return None
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO csv_uploads (user_id, filename, original_filename) VALUES (?, ?, ?)',
+                  (user_id, filename, original_filename))
+    conn.commit()
+    new_id = cursor.lastrowid
+    conn.close()
+    return new_id
+
+def get_user_csvs(username):
+    user_id = get_user_id(username)
+    if not user_id:
+        return []
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, filename, original_filename, uploaded_at FROM csv_uploads WHERE user_id = ? ORDER BY uploaded_at DESC', (user_id,))
+    results = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in results]
+
+def update_csv_filename(csv_id, new_filename):
+    conn = get_db()
+    conn.execute('UPDATE csv_uploads SET filename = ? WHERE id = ?', (new_filename, csv_id))
+    conn.commit()
+    conn.close()
+
+def delete_csv_upload(csv_id, username):
+    user_id = get_user_id(username)
+    if not user_id:
+        return None
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT filename FROM csv_uploads WHERE id = ? AND user_id = ?', (csv_id, user_id))
+    row = cursor.fetchone()
+    if row:
+        cursor.execute('DELETE FROM csv_uploads WHERE id = ?', (csv_id,))
+        conn.commit()
+    conn.close()
+    return row['filename'] if row else None
 
 init_db()
