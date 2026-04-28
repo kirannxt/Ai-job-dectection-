@@ -3,246 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flask App - Register</title>
+    <title>Register - Job Detection AI</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="auth-page">
     <div class="login-container">
         <h1>Create Account</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 20px;">
+            Join Job Detection AI and start detecting job opportunities
+        </p>
         
         {% if error %}
             <div class="error">{{ error }}</div>
         {% endif %}
         
+        {% if success %}
+            <div class="success">{{ success }}</div>
+        {% endif %}
+        
         <form method="POST" action="{{ url_for('register') }}" id="registerForm">
-            <div class="form-group">
-                <label for="first_name">First Name</label>
-                <input type="text" id="first_name" name="first_name" required>
+            <!-- SMS/Phone feature removed -->
+            <!--
+            <div style="background-color: #c8e6c9; border: 1px solid #4caf50; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+                <p style="margin: 0 0 8px 0; font-size: 13px; color: #1b5e20; font-weight: 600;">
+                    📱 Firebase SMS OTP
+                </p>
+                <small style="color: #155724; display: block;">
+                    OTP verification code will be sent to your phone via Firebase SMS.
+                </small>
             </div>
+            -->
             
             <div class="form-group">
-                <label for="last_name">Last Name</label>
-                <input type="text" id="last_name" name="last_name" required>
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter username (min 3 characters)" 
+                       minlength="3" required>
+                <small style="color: #999; margin-top: 5px; display: block;">
+                    Username must be at least 3 characters
+                </small>
             </div>
             
             <div class="form-group">
                 <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" required>
-                <span id="emailError" style="color: red; font-size: 12px; display: none;"></span>
+                <input type="email" id="email" name="email" placeholder="your.email@example.com" required>
+                <small style="color: #999; margin-top: 5px; display: block;">
+                    Your registered email address
+                </small>
+            </div>
+            
+            <!-- Phone field removed - SMS feature disabled -->
+            <!--
+            <div class="form-group">
+                <label for="phone">Phone Number</label>
+                <input type="tel" id="phone" name="phone" placeholder="+918197420471" 
+                       pattern="^\+[1-9]\d{1,14}$" required>
+                <small style="color: #999; margin-top: 5px; display: block;">
+                    Include country code (e.g., +91 for India, +1 for USA)
+                </small>
+            </div>
+            -->
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter password (min 6 characters)" 
+                       minlength="6" required>
+                <small style="color: #999; margin-top: 5px; display: block;">
+                    Password must be at least 6 characters
+                </small>
             </div>
             
             <div class="form-group">
-                <label for="username">User name</label>
-                <input type="text" id="username" name="username" required>
-                <span id="usernameError" style="color: red; font-size: 12px; display: none;"></span>
-            </div>
-            
-            <div class="form-group" id="contactGroup" style="display: none;">
-                <label for="contact_number">Contact Number</label>
-                <input type="tel" id="contact_number" name="contact_number" maxlength="10">
-                <span id="contactError" style="color: red; font-size: 12px; display: none;"></span>
-            </div>
-            
-            <div class="form-group" id="passwordGroup" style="display: none;">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password">
-                <span id="passwordError" style="color: red; font-size: 12px; display: none;"></span>
-            </div>
-            
-            <div class="form-group" id="confirmPasswordGroup" style="display: none;">
                 <label for="confirm_password">Confirm Password</label>
-                <input type="password" id="confirm_password" name="confirm_password">
-                <span id="confirmPasswordError" style="color: red; font-size: 12px; display: none;"></span>
+                <input type="password" id="confirm_password" name="confirm_password" 
+                       placeholder="Re-enter password" minlength="6" required>
             </div>
             
-            <div class="form-group" id="captchaGroup" style="display: none;">
-                <label for="captcha">Verify you're human</label>
-                <div class="captcha-container">
-                    <canvas id="captcha-canvas" width="200" height="60"></canvas>
-                    <button type="button" class="captcha-refresh" onclick="generateCaptcha()" title="Refresh CAPTCHA">&#x21bb;</button>
-                </div>
-                <input type="text" id="captcha" name="captcha" placeholder="Enter the code shown above">
-            </div>
-            
-            <button type="button" id="continueBtn" class="btn">Continue</button>
-            <button type="submit" id="registerBtn" class="btn" style="display: none;">Register</button>
+            <button type="submit" class="btn" id="registerBtn">
+                Continue with OTP Verification
+            </button>
         </form>
-        
-        <script>
-            let currentCaptcha = '';
-            let currentStep = 1;
-            
-            const emailInput = document.getElementById('email');
-            const usernameInput = document.getElementById('username');
-            const contactInput = document.getElementById('contact_number');
-            const passwordInput = document.getElementById('password');
-            const confirmPasswordInput = document.getElementById('confirm_password');
-            const continueBtn = document.getElementById('continueBtn');
-            const registerBtn = document.getElementById('registerBtn');
-            
-            function generateCaptcha() {
-                const canvas = document.getElementById('captcha-canvas');
-                const ctx = canvas.getContext('2d');
-                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-                
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#f8f9fa';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                for (let i = 0; i < 3; i++) {
-                    ctx.strokeStyle = `rgba(${Math.random()*255},${Math.random()*255},${Math.random()*255},0.3)`;
-                    ctx.beginPath();
-                    ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
-                    ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
-                    ctx.stroke();
-                }
-                
-                currentCaptcha = '';
-                for (let i = 0; i < 6; i++) {
-                    currentCaptcha += chars.charAt(Math.floor(Math.random() * chars.length));
-                }
-                
-                for (let i = 0; i < 6; i++) {
-                    ctx.font = `${20 + Math.random() * 10}px Arial`;
-                    ctx.fillStyle = `rgb(${Math.random()*100},${Math.random()*100},${Math.random()*100})`;
-                    ctx.save();
-                    ctx.translate(20 + i * 28, 35);
-                    ctx.rotate((Math.random() - 0.5) * 0.4);
-                    ctx.fillText(currentCaptcha[i], 0, 0);
-                    ctx.restore();
-                }
-                
-                document.getElementById('captcha').value = '';
-            }
-            
-            continueBtn.addEventListener('click', async () => {
-                if (currentStep === 1) {
-                    const email = emailInput.value.trim();
-                    if (!email.endsWith('@gmail.com')) {
-                        document.getElementById('emailError').textContent = 'Email must be a Gmail address (@gmail.com)';
-                        document.getElementById('emailError').style.display = 'block';
-                        return;
-                    }
-                    document.getElementById('emailError').style.display = 'none';
-                    emailInput.readOnly = true;
-                    currentStep = 2;
-                } else if (currentStep === 2) {
-                    const username = usernameInput.value.trim();
-                    if (!username || username.length < 3) {
-                        document.getElementById('usernameError').textContent = 'Username must be at least 3 characters';
-                        document.getElementById('usernameError').style.display = 'block';
-                        return;
-                    }
-                    
-                    const specialChars = username.match(/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;'/`~]/g);
-                    if (!specialChars || specialChars.length < 3) {
-                        document.getElementById('usernameError').textContent = 'Username must contain at least 3 special characters';
-                        document.getElementById('usernameError').style.display = 'block';
-                        return;
-                    }
-                    
-                    try {
-                        const response = await fetch('{{ url_for("check_username") }}', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ username })
-                        });
-                        const data = await response.json();
-                        
-                        if (data.exists) {
-                            document.getElementById('usernameError').textContent = 'Username already exists';
-                            document.getElementById('usernameError').style.display = 'block';
-                            return;
-                        }
-                    } catch (error) {
-                        document.getElementById('usernameError').textContent = 'Error validating username';
-                        document.getElementById('usernameError').style.display = 'block';
-                        return;
-                    }
-                    
-                    document.getElementById('usernameError').style.display = 'none';
-                    usernameInput.readOnly = true;
-                    document.getElementById('contactGroup').style.display = 'block';
-                    contactInput.focus();
-                    currentStep = 3;
-                } else if (currentStep === 3) {
-                    const contact = contactInput.value.trim();
-                    if (!/^\d{10}$/.test(contact)) {
-                        document.getElementById('contactError').textContent = 'Contact number must be exactly 10 digits';
-                        document.getElementById('contactError').style.display = 'block';
-                        return;
-                    }
-                    
-                    document.getElementById('contactError').style.display = 'none';
-                    contactInput.readOnly = true;
-                    document.getElementById('passwordGroup').style.display = 'block';
-                    passwordInput.focus();
-                    currentStep = 4;
-                } else if (currentStep === 4) {
-                    const password = passwordInput.value;
-                    if (password.length < 6) {
-                        document.getElementById('passwordError').textContent = 'Password must be at least 6 characters';
-                        document.getElementById('passwordError').style.display = 'block';
-                        return;
-                    }
-                    
-                    document.getElementById('passwordError').style.display = 'none';
-                    passwordInput.readOnly = true;
-                    document.getElementById('confirmPasswordGroup').style.display = 'block';
-                    confirmPasswordInput.focus();
-                    currentStep = 5;
-                } else if (currentStep === 5) {
-                    const password = passwordInput.value;
-                    const confirmPassword = confirmPasswordInput.value;
-                    if (password !== confirmPassword) {
-                        document.getElementById('confirmPasswordError').textContent = 'Passwords do not match';
-                        document.getElementById('confirmPasswordError').style.display = 'block';
-                        return;
-                    }
-                    
-                    document.getElementById('confirmPasswordError').style.display = 'none';
-                    confirmPasswordInput.readOnly = true;
-                    document.getElementById('captchaGroup').style.display = 'block';
-                    generateCaptcha();
-                    continueBtn.style.display = 'none';
-                    registerBtn.style.display = 'block';
-                    document.getElementById('captcha').focus();
-                }
-            });
-            
-            emailInput.addEventListener('input', () => {
-                document.getElementById('emailError').style.display = 'none';
-            });
-            
-            usernameInput.addEventListener('input', () => {
-                document.getElementById('usernameError').style.display = 'none';
-            });
-            
-            contactInput.addEventListener('input', () => {
-                document.getElementById('contactError').style.display = 'none';
-            });
-            
-            passwordInput.addEventListener('input', () => {
-                document.getElementById('passwordError').style.display = 'none';
-            });
-            
-            confirmPasswordInput.addEventListener('input', () => {
-                document.getElementById('confirmPasswordError').style.display = 'none';
-            });
-            
-            document.getElementById('registerForm').addEventListener('submit', function(e) {
-                const userInput = document.getElementById('captcha').value;
-                if (userInput !== currentCaptcha) {
-                    e.preventDefault();
-                    alert('Invalid CAPTCHA. Please try again.');
-                    generateCaptcha();
-                }
-            });
-        </script>
         
         <p style="text-align: center; margin-top: 20px; color: #666;">
             Already have an account? <a href="{{ url_for('login') }}" style="color: #667eea; text-decoration: none; font-weight: 600;">Login here</a>
         </p>
     </div>
+
+    <script>
+        // Form validation
+        const form = document.getElementById('registerForm');
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirm_password');
+        
+        form.addEventListener('submit', function(e) {
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                alert('Passwords do not match. Please try again.');
+                return false;
+            }
+        });
+        
+        // Phone validation script removed - SMS feature disabled
+        // const phoneInput = document.getElementById('phone');
+        // phoneInput.addEventListener('input', function() {
+        //     // Ensure it starts with + if it doesn't
+        //     if (this.value && !this.value.startsWith('+')) {
+        //         this.value = '+' + this.value;
+        //     }
+        // });
+    </script>
 </body>
 </html>
+

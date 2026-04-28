@@ -120,7 +120,7 @@
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('profile') }}">Profile</a></li>
                 <li><a href="{{ url_for('job_post_detector') }}">Job Detector</a></li>
-                <li><a href="{{ url_for('upload') }}">File Manager</a></li>
+                <li><a href="{{ url_for('upload') }}">Train Module</a></li>
                 <li><a href="{{ url_for('settings') }}">Settings</a></li>
                 <li><a href="{{ url_for('logout') }}" class="logout">Logout</a></li>
             </ul>
@@ -153,8 +153,11 @@
             
             <div class="card">
                 <h3>Contact Information</h3>
-                <p><strong>Email:</strong> <span id="displayEmail">{{ username }}@example.com</span></p>
-                <p><strong>Phone:</strong> <span id="displayPhone">Not set</span></p>
+                <p><strong>Email:</strong> <span id="displayEmail">{{ user.email or username + '@example.com' }}</span></p>
+                <!-- WhatsApp/Phone feature removed - SMS disabled -->
+                <!--
+                <p><strong>WhatsApp:</strong> <span id="displayPhone">{{ user.phone or 'Not set' }}</span></p>
+                -->
                 <p><strong>Country:</strong> <span id="displayCountry">United States</span></p>
                 <button class="btn" style="margin-top: 15px;" onclick="openModal('contactModal')">Update Contact</button>
             </div>
@@ -246,12 +249,16 @@
             <form onsubmit="updateContact(event)">
                 <div class="form-group">
                     <label>Email</label>
-                    <input type="email" id="email" value="{{ username }}@example.com">
+                    <input type="email" id="email" value="{{ user.email or username + '@example.com' }}">
                 </div>
+                <!-- WhatsApp/Phone field removed - SMS feature disabled -->
+                <!--
                 <div class="form-group">
-                    <label>Phone</label>
-                    <input type="tel" id="phone" placeholder="Not set">
+                    <label>WhatsApp Number</label>
+                    <input type="tel" id="phone" placeholder="e.g., +918197420471" value="{{ user.phone or '' }}">
+                    <small style="color: #999; display: block; margin-top: 5px;">Include country code (e.g., +91 for India, +1 for USA)</small>
                 </div>
+                -->
                 <div class="form-group">
                     <label>Country</label>
                     <input type="text" id="country" value="United States">

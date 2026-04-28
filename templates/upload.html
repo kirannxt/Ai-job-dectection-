@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Manager</title>
+    <title>Train Module</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        body.dark-mode { background:#1a1a1a; color:#e0e0e0; }
+        body.dark-mode { background:#1a1a1a; color:#e0e0e0 !important; }
         body.dark-mode .navbar { background:#2d2d2d; }
         body.dark-mode .navbar h2, body.dark-mode .navbar a { color:#e0e0e0; }
         body.dark-mode .card { background:#2d2d2d; color:#e0e0e0; }
-        body.dark-mode .page-header h1, body.dark-mode .page-header p { color:#e0e0e0 !important; }
+        body.dark-mode .card h3 { color:#e0e0e0 !important; }
+        body.dark-mode p { color:#e0e0e0 !important; }
         body.dark-mode table { color:#e0e0e0; }
         body.dark-mode td, body.dark-mode th { border-color:#444; }
 
@@ -26,6 +27,8 @@
         .btn-view   { background:#667eea; color:#fff; }
         .btn-dl     { background:#17a2b8; color:#fff; }
         .btn-new    { background:#28a745; color:#fff; }
+        .btn-train  { background:#ff9800; color:#fff; }
+        .btn-sm:disabled { opacity:0.6; cursor:not-allowed; }
 
         .files-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
 
@@ -47,7 +50,58 @@
 
         .alert { padding:10px 15px; border-radius:5px; margin-bottom:12px; font-size:14px; }
         .alert-danger { background:#f8d7da; color:#721c24; }
+        .alert-success { background:#d4edda; color:#155724; }
+        .alert-info { background:#d1ecf1; color:#0c5460; }
+        .btn-extract { background:#4a90e2; color:#fff; padding:5px 14px; font-size:13px; border:none; border-radius:4px; cursor:pointer; font-weight:500; }
+        .btn-extract:hover { opacity:0.95; }
+        .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.55); }
+        .modal-content { background:#fff; margin:6% auto; padding:24px; border-radius:12px; width:95%; max-width:520px; position:relative; }
+        .modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+        .modal-header h2 { margin:0; font-size:22px; }
+        .modal-close { font-size:28px; font-weight:700; cursor:pointer; color:#999; }
+        body.dark-mode .modal-content { background:#2b2b2b; color:#e0e0e0 !important; }
+        body.dark-mode .modal-header h2,
+        body.dark-mode .modal-field label { color:#e0e0e0 !important; }
+        .modal-close:hover { color:#333; }
+        body.dark-mode .modal-close:hover { color:#ccc; }
+        .modal-field { margin-bottom:16px; }
+        .modal-field label { display:block; margin-bottom:8px; font-weight:600; }
+        .modal-field select,
+        .modal-field input { width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:6px; }
+        body.dark-mode .modal-field select,
+        body.dark-mode .modal-field input { background:#1f1f1f; color:#e0e0e0; border-color:#444; }
+        .modal-actions { display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; }
+        .modal-status { margin-top:14px; font-size:14px; color:#333; }
+        body.dark-mode .modal-status { color:#e0e0e0 !important; }
+        body.dark-mode .modal-status { color:#e0e0e0 !important; }
         body.dark-mode .alert-danger { background:#4d1e22; color:#f5a3a7; }
+        body.dark-mode .alert-success { background:#1e4620; color:#a7f5b0; }
+        body.dark-mode .alert-info { background:#1e3a4d; color:#a7d9f5; }
+
+        /* Responsive modal */
+        @media (max-width: 600px) {
+            .modal-content {
+                margin: 2% auto;
+                padding: 16px;
+                width: 95%;
+                max-width: none;
+            }
+            .modal-header h2 {
+                font-size: 18px;
+            }
+            .modal-actions {
+                flex-direction: column;
+            }
+            .modal-actions button {
+                width: 100%;
+            }
+        }
+        
+        #metricsChart {
+            border: 1px solid #eee;
+            border-radius: 6px;
+            background: #fff;
+        }
     </style>
 </head>
 <body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
@@ -58,7 +112,7 @@
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('profile') }}">Profile</a></li>
                 <li><a href="{{ url_for('job_post_detector') }}">Job Detector</a></li>
-                <li><a href="{{ url_for('upload') }}">File Manager</a></li>
+                <li><a href="{{ url_for('upload') }}">Train Module</a></li>
                 <li><a href="{{ url_for('settings') }}">Settings</a></li>
                 <li><a href="{{ url_for('logout') }}" class="logout">Logout</a></li>
             </ul>
@@ -67,13 +121,20 @@
 
     <div class="page-container">
         <div class="page-header">
-            <h1>File Manager</h1>
-            <p>Upload and manage your Excel files.</p>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
+                <div>
+                    <h1>Train Module</h1>
+                    <p>Upload and manage your Excel files.</p>
+                </div>
+                <button class="btn-sm btn-view" onclick="openExtractModal()">Extract Data</button>
+            </div>
         </div>
 
         {% if error %}
         <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
+
+        <div id="training-status" class="alert" style="display:none;"></div>
 
         {% if user_csvs %}
         <!-- RETURNING USER: files list + hidden upload form -->
@@ -85,12 +146,12 @@
 
             <!-- inline upload form, hidden by default -->
             <div id="inline-upload">
-                <p style="font-size:13px;color:#888;margin-bottom:8px;">Only Excel files are accepted (.xls, .xlsx)</p>
+                <p style="font-size:13px;color:#888;margin-bottom:8px;">Only Excel and CSV files are accepted (.xls, .xlsx, .csv)</p>
                 <form method="POST" enctype="multipart/form-data"
-                      style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;"
+                      style="display:flex;gap:12px;align-items:center;"
                       onsubmit="return validateFile(event)">
                     <input type="file" name="csv_file" id="csv_file" required style="flex:1;min-width:220px;">
-                    <button type="submit" class="btn">Upload</button>
+                    <button type="submit" class="btn-sm btn-new">Upload</button>
                     <button type="button" class="btn-sm btn-danger" onclick="toggleUpload()">Cancel</button>
                 </form>
                 <p id="file-error" style="color:#dc3545;font-size:13px;margin-top:8px;display:none;"></p>
@@ -111,11 +172,14 @@
                         <td>{{ loop.index }}</td>
                         <td>{{ f.original_filename }}</td>
                         <td>{{ f.uploaded_at }}</td>
-                        <td style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <td style="display:flex; gap:6px; white-space:nowrap; flex-wrap:nowrap; align-items:center;">
                             <button class="btn-sm btn-view"
                                     onclick="viewFile({{ f.id }}, '{{ f.original_filename }}')">View</button>
                             <a href="{{ url_for('csv_download', csv_id=f.id) }}"
                                class="btn-sm btn-dl" style="text-decoration:none;">Download</a>
+                            <button class="btn-sm btn-train" 
+                                    onclick="trainModel({{ f.id }}, '{{ f.original_filename }}')"
+                                    id="train-btn-{{ f.id }}">Train</button>
                             <form method="POST" action="{{ url_for('csv_delete', csv_id=f.id) }}"
                                   style="margin:0;" onsubmit="return confirm('Delete this file?')">
                                 <button type="submit" class="btn-sm btn-danger">Delete</button>
@@ -131,16 +195,123 @@
         <!-- FIRST TIME USER: upload form only -->
         <div class="card" id="upload-card">
             <h3>Upload File</h3>
-            <p style="font-size:13px;color:#888;margin-top:6px;">Only Excel files are accepted (.xls, .xlsx)</p>
+            <p style="font-size:13px;color:#888;margin-top:6px;">Only Excel and CSV files are accepted (.xls, .xlsx, .csv)</p>
             <form method="POST" enctype="multipart/form-data"
-                  style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px;"
+                  style="display:flex;gap:12px;align-items:center;margin-top:10px;"
                   onsubmit="return validateFile(event)">
-                <input type="file" name="csv_file" id="csv_file" required style="flex:1;min-width:220px;">
-                <button type="submit" class="btn">Upload</button>
+                <input type="file" name="csv_file" id="csv_file" required accept=".xls,.xlsx,.csv" style="flex:1;min-width:220px;">
+                <button type="submit" class="btn-sm btn-new">Upload</button>
             </form>
             <p id="file-error" style="color:#dc3545;font-size:13px;margin-top:8px;display:none;"></p>
         </div>
         {% endif %}
+
+        <!-- Extract Data Modal -->
+        <div id="extractModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Extract Data</h2>
+                    <span class="modal-close" onclick="closeExtractModal()">&times;</span>
+                </div>
+                <div class="modal-field">
+                    <label for="extractWebsite">Select Website</label>
+                    <select id="extractWebsite">
+                        <option value="linkedin">LinkedIn</option>
+                    </select>
+                </div>
+                <div class="modal-field">
+                    <label for="extractUrl">Page URL</label>
+                    <input type="url" id="extractUrl" placeholder="https://www.linkedin.com/jobs/search/?keywords=python" />
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-sm btn-danger" onclick="closeExtractModal()">Cancel</button>
+                    <button type="button" class="btn-sm btn-extract" onclick="extractData()">Extract Data</button>
+                </div>
+                <div id="extractStatus" class="modal-status" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Algorithm Selection Modal -->
+        <div id="algorithmModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Select ML Algorithm</h2>
+                    <span class="modal-close" onclick="closeAlgorithmModal()">&times;</span>
+                </div>
+                <div class="modal-field">
+                    <label for="algorithmSelect">Algorithm</label>
+                    <select id="algorithmSelect">
+                        <option value="knn">K-Nearest Neighbors (KNN) - Fast & Simple</option>
+                        <option value="random_forest">Random Forest - Accurate & Robust</option>
+                        <option value="logistic_regression">Logistic Regression - Balanced</option>
+                    </select>
+                    <p style="font-size:13px; color:#666; margin-top:8px;">Training file: <strong id="selectedFilename"></strong></p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-sm btn-danger" onclick="closeAlgorithmModal()">Cancel</button>
+                    <button type="button" class="btn-sm btn-extract" onclick="confirmTraining()">Train Model</button>
+                </div>
+                <input type="hidden" id="selectedCsvId"/>
+            </div>
+        </div>
+
+        <!-- Training Details Modal -->
+        <div id="detailsModal" class="modal">
+            <div class="modal-content" style="max-width:700px;">
+                <div class="modal-header">
+                    <h2>Training Details</h2>
+                    <span class="modal-close" onclick="closeDetailsModal()">&times;</span>
+                </div>
+                <div style="max-height: 500px; overflow-y: auto;">
+                    <div style="margin-bottom:20px;">
+                        <h4 style="margin-top:0; margin-bottom:10px;">Model Performance Metrics</h4>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                            <div style="padding:12px; background:#f5f5f5; border-radius:6px;">
+                                <div style="font-size:13px; color:#666;">Algorithm</div>
+                                <div style="font-size:18px; font-weight:bold; color:#333; margin-top:4px;" id="modelAlgorithm">-</div>
+                            </div>
+                            <div style="padding:12px; background:#f5f5f5; border-radius:6px;">
+                                <div style="font-size:13px; color:#666;">Accuracy</div>
+                                <div style="font-size:18px; font-weight:bold; color:#4CAF50; margin-top:4px;" id="modelAccuracy">-</div>
+                            </div>
+                            <div style="padding:12px; background:#f5f5f5; border-radius:6px;">
+                                <div style="font-size:13px; color:#666;">Precision</div>
+                                <div style="font-size:18px; font-weight:bold; color:#2196F3; margin-top:4px;" id="modelPrecision">-</div>
+                            </div>
+                            <div style="padding:12px; background:#f5f5f5; border-radius:6px;">
+                                <div style="font-size:13px; color:#666;">Recall</div>
+                                <div style="font-size:18px; font-weight:bold; color:#FF9800; margin-top:4px;" id="modelRecall">-</div>
+                            </div>
+                            <div style="padding:12px; background:#f5f5f5; border-radius:6px;">
+                                <div style="font-size:13px; color:#666;">F1 Score</div>
+                                <div style="font-size:18px; font-weight:bold; color:#9C27B0; margin-top:4px;" id="modelF1">-</div>
+                            </div>
+                            <div style="padding:12px; background:#f5f5f5; border-radius:6px;">
+                                <div style="font-size:13px; color:#666;">Training Samples</div>
+                                <div style="font-size:18px; font-weight:bold; color:#333; margin-top:4px;" id="totalSamples">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom:20px;">
+                        <h4 style="margin-top:0; margin-bottom:10px;">Confusion Matrix</h4>
+                        <div id="confusionMatrix" style="font-size:13px;"></div>
+                    </div>
+                    
+                    <div style="margin-bottom:20px;">
+                        <h4 style="margin-top:0; margin-bottom:10px;">Performance Chart</h4>
+                        <canvas id="metricsChart" width="600" height="300" style="width:100%; max-width:600px; border:1px solid #eee; border-radius:6px;"></canvas>
+                    </div>
+                    
+                    <div style="padding:10px; background:#f5f5f5; border-radius:6px; font-size:12px; color:#666;">
+                        <strong>Trained At:</strong> <span id="trainingDate">-</span>
+                    </div>
+                </div>
+                <div class="modal-actions" style="margin-top:20px;">
+                    <button type="button" class="btn-sm btn-view" onclick="closeDetailsModal()">Close</button>
+                </div>
+            </div>
+        </div>
 
         <!-- VIEW SECTION: shown only on View click -->
         <div id="view-section" class="card">
@@ -215,7 +386,6 @@
                 '.pdf':  'PDF files are not allowed. Please upload an Excel file (.xls or .xlsx).',
                 '.doc':  'Word documents are not allowed. Please upload an Excel file (.xls or .xlsx).',
                 '.docx': 'Word documents are not allowed. Please upload an Excel file (.xls or .xlsx).',
-                '.csv':  'CSV files are not allowed. Please upload an Excel file (.xls or .xlsx).',
                 '.txt':  'Text files are not allowed. Please upload an Excel file (.xls or .xlsx).',
                 '.png':  'Image files are not allowed. Please upload an Excel file (.xls or .xlsx).',
                 '.jpg':  'Image files are not allowed. Please upload an Excel file (.xls or .xlsx).',
@@ -223,7 +393,7 @@
                 '.ppt':  'PowerPoint files are not allowed. Please upload an Excel file (.xls or .xlsx).',
                 '.pptx': 'PowerPoint files are not allowed. Please upload an Excel file (.xls or .xlsx).'
             };
-            if (ext !== '.xls' && ext !== '.xlsx') {
+            if (ext !== '.xls' && ext !== '.xlsx' && ext !== '.csv') {
                 e.preventDefault();
                 errEl.textContent = messages[ext] || '"' + ext + '" files are not allowed. Please upload an Excel file (.xls or .xlsx).';
                 errEl.style.display = 'block';
@@ -232,6 +402,369 @@
             }
             errEl.style.display = 'none';
             return true;
+        }
+
+        function trainModel(csvId, filename) {
+            const btn = document.getElementById('train-btn-' + csvId);
+            const modal = document.getElementById('algorithmModal');
+            
+            if (!modal) {
+                console.error('Algorithm modal not found');
+                return;
+            }
+            
+            // Show algorithm selection modal
+            modal.style.display = 'block';
+            document.getElementById('selectedCsvId').value = csvId;
+            document.getElementById('selectedFilename').textContent = filename;
+        }
+        
+        function closeAlgorithmModal() {
+            const modal = document.getElementById('algorithmModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Close algorithm modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('algorithmModal');
+            if (event.target === modal) {
+                closeAlgorithmModal();
+            }
+        }
+        
+        // Close algorithm modal on Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeAlgorithmModal();
+            }
+        });
+        
+        function confirmTraining() {
+            const csvId = document.getElementById('selectedCsvId').value;
+            const algorithm = document.getElementById('algorithmSelect').value;
+            const statusDiv = document.getElementById('training-status');
+            const btn = document.getElementById('train-btn-' + csvId);
+            
+            closeAlgorithmModal();
+            
+            // Disable button and show loading
+            btn.disabled = true;
+            btn.textContent = 'Training...';
+            
+            // Show info message
+            statusDiv.className = 'alert alert-info';
+            statusDiv.textContent = 'Training model with ' + algorithm.toUpperCase() + '... Please wait.';
+            statusDiv.style.display = 'block';
+            statusDiv.scrollIntoView({behavior: 'smooth'});
+            
+            // Make the training request
+            fetch('/train-model/' + csvId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ algorithm: algorithm })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusDiv.className = 'alert alert-success';
+                    statusDiv.textContent = '✓ ' + data.message;
+                    
+                    // Change button to View Details
+                    btn.textContent = 'View Details';
+                    btn.className = 'btn-sm btn-view';
+                    btn.disabled = false;
+                    
+                    // Store metrics for later retrieval
+                    sessionStorage.setItem('trainingMetrics', JSON.stringify(data.metrics || {}));
+                    
+                    // Change button onclick to open details
+                    btn.onclick = () => showTrainingDetails(csvId, data.metrics);
+                    
+                    // Add a button to view dashboard training history
+                    const dashboardLink = document.createElement('button');
+                    dashboardLink.className = 'btn-sm btn-view';
+                    dashboardLink.textContent = 'View Training History';
+                    dashboardLink.style.marginLeft = '8px';
+                    dashboardLink.onclick = () => window.location.href = '{{ url_for("dashboard") }}';
+                    statusDiv.appendChild(document.createTextNode(' '));
+                    statusDiv.appendChild(dashboardLink);
+                } else {
+                    statusDiv.className = 'alert alert-danger';
+                    statusDiv.textContent = '✗ Training failed: ' + data.message;
+                    btn.textContent = 'Train Model';
+                    btn.disabled = false;
+                }
+            })
+            .catch(error => {
+                statusDiv.className = 'alert alert-danger';
+                statusDiv.textContent = '✗ Error: Failed to train model. Please try again.';
+                btn.textContent = 'Train Model';
+                btn.disabled = false;
+                console.error('Training error:', error);
+            });
+        }
+        
+        function showTrainingDetails(csvId, metrics) {
+            metrics = metrics || JSON.parse(sessionStorage.getItem('trainingMetrics') || '{}');
+            if (!metrics || !metrics.confusion_matrix) {
+                alert('No training metrics available');
+                return;
+            }
+            
+            const modal = document.getElementById('detailsModal');
+            if (!modal) {
+                console.error('Details modal not found');
+                return;
+            }
+            
+            // Update modal content with metrics
+            const cm = metrics.confusion_matrix;
+            const accuracy = ((metrics.accuracy || 0) * 100).toFixed(2);
+            const precision = ((metrics.precision || 0) * 100).toFixed(2);
+            const recall = ((metrics.recall || 0) * 100).toFixed(2);
+            const f1 = ((metrics.f1_score || 0) * 100).toFixed(2);
+            
+            document.getElementById('modelAlgorithm').textContent = metrics.algorithm || 'Unknown';
+            document.getElementById('modelAccuracy').textContent = accuracy + '%';
+            document.getElementById('modelPrecision').textContent = precision + '%';
+            document.getElementById('modelRecall').textContent = recall + '%';
+            document.getElementById('modelF1').textContent = f1 + '%';
+            document.getElementById('trainingDate').textContent = metrics.trained_at ? new Date(metrics.trained_at).toLocaleString() : 'N/A';
+            document.getElementById('totalSamples').textContent = metrics.training_samples || '0';
+            
+            // Draw confusion matrix table
+            const cmHtml = '<table style="width:100%; border-collapse:collapse; margin-top:10px;">' +
+                '<tr><td style="border:1px solid #ddd; padding:10px;"><strong>True Negative</strong><br>' + cm[0][0] + '</td>' +
+                '<td style="border:1px solid #ddd; padding:10px;"><strong>False Positive</strong><br>' + cm[0][1] + '</td></tr>' +
+                '<tr><td style="border:1px solid #ddd; padding:10px;"><strong>False Negative</strong><br>' + cm[1][0] + '</td>' +
+                '<td style="border:1px solid #ddd; padding:10px;"><strong>True Positive</strong><br>' + cm[1][1] + '</td></tr>' +
+                '</table>';
+            document.getElementById('confusionMatrix').innerHTML = cmHtml;
+            
+            // Draw bar chart
+            drawMetricsChart(accuracy, precision, recall, f1);
+            
+            modal.style.display = 'block';
+        }
+        
+        function closeDetailsModal() {
+            const modal = document.getElementById('detailsModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Close details modal when clicking outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('detailsModal');
+            if (event.target === modal) {
+                closeDetailsModal();
+            }
+        });
+        
+        // Close details modal on Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeDetailsModal();
+            }
+        });
+        
+        function drawMetricsChart(accuracy, precision, recall, f1) {
+            const canvas = document.getElementById('metricsChart');
+            if (!canvas) return;
+            
+            // Convert string values to numbers
+            accuracy = parseFloat(accuracy) || 0;
+            precision = parseFloat(precision) || 0;
+            recall = parseFloat(recall) || 0;
+            f1 = parseFloat(f1) || 0;
+            
+            const ctx = canvas.getContext('2d');
+            const barWidth = 40;
+            const spacing = 30;
+            const chartHeight = 250;
+            const chartMaxHeight = 220;
+            const startX = 50;
+            
+            // Clear canvas
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw axes
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(startX, 20);
+            ctx.lineTo(startX, chartHeight);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(startX, chartHeight);
+            ctx.lineTo(canvas.width - 20, chartHeight);
+            ctx.stroke();
+            
+            // Draw grid lines
+            for (let i = 0; i <= 100; i += 20) {
+                const y = chartHeight - (i / 100) * chartMaxHeight;
+                ctx.strokeStyle = '#eee';
+                ctx.beginPath();
+                ctx.moveTo(startX, y);
+                ctx.lineTo(canvas.width - 20, y);
+                ctx.stroke();
+                
+                // Draw labels
+                ctx.fillStyle = '#666';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(i + '%', startX - 10, y + 4);
+            }
+            
+            // Prepare data
+            const metrics = [
+                { label: 'Accuracy', value: accuracy, color: '#4CAF50' },
+                { label: 'Precision', value: precision, color: '#2196F3' },
+                { label: 'Recall', value: recall, color: '#FF9800' },
+                { label: 'F1 Score', value: f1, color: '#9C27B0' }
+            ];
+            
+            // Draw bars
+            let x = startX + 30;
+            metrics.forEach((metric, idx) => {
+                const barHeight = (metric.value / 100) * chartMaxHeight;
+                
+                // Draw bar
+                ctx.fillStyle = metric.color;
+                ctx.fillRect(x, chartHeight - barHeight, barWidth, barHeight);
+                
+                // Draw border
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x, chartHeight - barHeight, barWidth, barHeight);
+                
+                // Draw label
+                ctx.fillStyle = '#333';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(metric.label, x + barWidth/2, chartHeight + 20);
+                
+                // Draw value
+                ctx.fillStyle = metric.color;
+                ctx.font = 'bold 14px Arial';
+                ctx.fillText(metric.value.toFixed(1) + '%', x + barWidth/2, chartHeight - barHeight - 10);
+                
+                x += barWidth + spacing;
+            });
+        }
+
+        function openExtractModal() {
+            const modal = document.getElementById('extractModal');
+            if (modal) {
+                modal.style.display = 'block';
+                const statusEl = document.getElementById('extractStatus');
+                const urlInput = document.getElementById('extractUrl');
+                if (statusEl) statusEl.style.display = 'none';
+                if (urlInput) urlInput.value = '';
+            }
+        }
+
+        function closeExtractModal() {
+            const modal = document.getElementById('extractModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('extractModal');
+            if (event.target === modal) {
+                closeExtractModal();
+            }
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeExtractModal();
+            }
+        });
+
+        function extractData() {
+            const website = document.getElementById('extractWebsite')?.value;
+            const url = document.getElementById('extractUrl')?.value.trim();
+            const statusEl = document.getElementById('extractStatus');
+            const button = document.querySelector('#extractModal .btn-extract');
+
+            if (!statusEl || !button) {
+                console.error('Modal elements not found');
+                return;
+            }
+
+            if (!url) {
+                statusEl.className = 'alert alert-danger';
+                statusEl.textContent = 'Please enter the page URL to extract from.';
+                statusEl.style.display = 'block';
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = 'Extracting...';
+            statusEl.className = 'alert alert-info';
+            statusEl.textContent = 'Extracting data from the website. This may take a moment...';
+            statusEl.style.display = 'block';
+
+            const endpoint = '{{ url_for("extract_data") }}';
+            
+            // Create a timeout promise
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timeout')), 120000) // 2 minutes timeout
+            );
+
+            Promise.race([
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ website, url })
+                }).then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                }),
+                timeoutPromise
+            ])
+            .then(data => {
+                if (data.success) {
+                    statusEl.className = 'alert alert-success';
+                    statusEl.textContent = '✓ ' + data.message;
+                    button.textContent = 'Extract Data';
+                    button.disabled = false;
+                    // Optionally close modal after success
+                    // setTimeout(() => closeExtractModal(), 2000);
+                } else {
+                    statusEl.className = 'alert alert-danger';
+                    statusEl.textContent = '✗ ' + (data.message || 'Unknown error occurred');
+                    button.textContent = 'Extract Data';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Extract error:', error);
+                statusEl.className = 'alert alert-danger';
+                if (error.message === 'Request timeout') {
+                    statusEl.textContent = '✗ Request timed out. This usually means LinkedIn blocked the request. Try a different URL or try again later.';
+                } else {
+                    statusEl.textContent = '✗ Error extracting data. Please check the URL and try again.';
+                }
+                button.textContent = 'Extract Data';
+                button.disabled = false;
+            });
         }
     </script>
 </body>

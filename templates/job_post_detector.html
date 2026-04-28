@@ -218,7 +218,7 @@
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('profile') }}">Profile</a></li>
                 <li><a href="{{ url_for('job_post_detector') }}">Job Detector</a></li>
-                <li><a href="{{ url_for('upload') }}">File Manager</a></li>
+                <li><a href="{{ url_for('upload') }}">Train Module</a></li>
                 <li><a href="{{ url_for('settings') }}">Settings</a></li>
                 <li><a href="{{ url_for('logout') }}" class="logout">Logout</a></li>
             </ul>
@@ -239,6 +239,15 @@
                 {% if error %}
                     <div class="error">{{ error }}</div>
                 {% endif %}
+                
+                <!-- Job Selection Dropdown -->
+                <div class="form-group" style="margin-bottom: 25px;">
+                    <label for="job_selector">Select from Scraped Data (Optional)</label>
+                    <select id="job_selector" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px;">
+                        <option value="">-- Choose a job posting --</option>
+                    </select>
+                    <small style="color: #666; margin-top: 5px; display: block;">Select a job from your uploaded LinkedIn data to auto-fill the form</small>
+                </div>
                 
                 <form method="POST" action="{{ url_for('job_post_detector') }}">
                     <div class="form-row">
@@ -343,5 +352,45 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+        // Load scraped job data for dropdown
+        async function loadJobData() {
+            try {
+                const response = await fetch('/api/scraped-jobs');
+                const data = await response.json();
+                
+                const selector = document.getElementById('job_selector');
+                
+                data.jobs.forEach((job, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = `${job.title} - ${job.company}`;
+                    option.dataset.job = JSON.stringify(job);
+                    selector.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading job data:', error);
+            }
+        }
+
+        // Handle job selection
+        document.getElementById('job_selector').addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value && selectedOption.dataset.job) {
+                const job = JSON.parse(selectedOption.dataset.job);
+                
+                // Fill form fields
+                document.getElementById('job_title').value = job.title || '';
+                document.getElementById('company_name').value = job.company || '';
+                document.getElementById('job_description').value = job.description || '';
+                document.getElementById('location').value = job.location || '';
+                document.getElementById('salary').value = ''; // Salary not available in scraped data
+            }
+        });
+
+        // Load job data when page loads
+        document.addEventListener('DOMContentLoaded', loadJobData);
+    </script>
 </body>
 </html>

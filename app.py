@@ -1,15 +1,22 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
-from datetime import timedelta
-from ml_model import process_job_post, get_detector_info
-from database import create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename
+from datetime import timedelta, datetime
+from ml_model import process_job_post, get_detector_info, retrain_model
+from database import init_db, create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename, save_training_metrics, get_latest_training_metrics, get_all_training_metrics, get_training_statistics, save_contact_info, get_contact_info, send_notification, send_email, generate_otp, save_otp, verify_otp as verify_otp_db, is_otp_verified, delete_otp, send_otp_email
+# SMS/Phone options removed: send_sms, register_device_token, get_device_tokens
 import os, csv, uuid
 import openpyxl
+from dotenv import load_dotenv
 
+# Load environment variables from .env file
+load_dotenv()
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_change_this'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Initialize database on app startup
+init_db()
 
 
 
@@ -17,7 +24,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 def inject_preferences():
     if 'username' in session:
         return {'user_preferences': get_user_preferences(session['username'])}
-    return {'user_preferences': {'dark_mode': 0, 'compact_view': 0}}
+    return {'user_preferences': {'dark_mode': 0, 'compact_view': 0, 'email_notifications': 1}}
+    # SMS notifications removed
 
 @app.before_request
 def make_session_permanent():
@@ -40,6 +48,25 @@ def login():
         if verify_user(username, password):
             session['username'] = username
             log_activity(username, 'login', 'Logged in')
+            
+            # Send welcome notification on login
+            from datetime import datetime
+            email_body = f"""
+Welcome back, {username}!
+
+Login Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+You're now connected to your Job Detection AI system.
+            """
+            # SMS notification removed
+            send_notification(
+                username,
+                'Welcome Back',
+                email_body,
+                email_body,
+                email_body
+            )
+            
             return redirect(url_for('dashboard'))
         else:
             error = 'Invalid username or password'
@@ -67,12 +94,17 @@ def forgot_password():
 def register():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
+        # phone = request.form.get('phone', '').strip()  # SMS REMOVED
+        phone = None  # SMS REMOVED - Phone field commented out
         error = None
         
         if not username:
             error = 'Username is required'
+        elif not email:
+            error = 'Email is required'
         elif not password:
             error = 'Password is required'
         elif password != confirm_password:
@@ -81,18 +113,166 @@ def register():
             error = 'Username must be at least 3 characters long'
         elif len(password) < 6:
             error = 'Password must be at least 6 characters long'
+        # Phone validation removed - SMS feature disabled
+        # elif not phone:
+        #     error = 'Phone number is required'
+        # elif not phone.startswith('+'):
+        #     error = 'Phone number must include country code (e.g., +918197420471)'
+        elif '@' not in email or '.' not in email:
+            error = 'Please enter a valid email address'
         
         if error:
             return render_template('register.html', error=error)
         
-        if not create_user(username, password):
+        if user_exists(username):
             error = 'Username already exists'
             return render_template('register.html', error=error)
         
-        log_activity(username, 'register', 'Account created')
-        return redirect(url_for('login'))
+        # Generate OTP
+        otp = generate_otp()
+        save_otp(username, phone, otp)
+        
+        # Send OTP via email
+        email_sent = send_otp_email(email, otp, username)
+        if not email_sent:
+            print(f"[OTP] Warning: Failed to send OTP email to {email}")
+        else:
+            print(f"[OTP] OTP {otp} sent via email to {email}")
+        
+        print(f"[OTP] OTP {otp} generated for user: {username}")
+        
+        # Store registration data temporarily in session
+        session['reg_username'] = username
+        session['reg_email'] = email
+        session['reg_password'] = password
+        session['reg_phone'] = phone
+        
+        log_activity(username, 'register_attempt', f'Registration started - OTP verification required')
+        
+        return redirect(url_for('verify_otp'))
     
     return render_template('register.html')
+
+
+@app.route('/verify-otp', methods=['GET', 'POST'])
+def verify_otp():
+    # Check if user has initiated registration
+    if 'reg_username' not in session:
+        error = 'Please start registration again'
+        return render_template('register.html', error=error)
+    
+    username = session.get('reg_username')
+    phone = session.get('reg_phone')
+    
+    if request.method == 'POST':
+        otp_input = request.form.get('otp', '').strip()
+        error = None
+        
+        if not otp_input:
+            error = 'OTP is required'
+            return render_template('otp_verification.html', error=error, phone=phone)
+        
+        # Verify OTP
+        result = verify_otp_db(username, otp_input)
+        
+        if not result['success']:
+            error = result['message']
+            attempts_left = result.get('attempts', 2)
+            max_attempts = result.get('max_attempts', 2)
+            
+            # If max attempts reached, offer regeneration
+            if attempts_left == 0:
+                return render_template('otp_verification.html', 
+                                       error=error, 
+                                       phone=phone,
+                                       attempts_exhausted=True,
+                                       show_regenerate=True)
+            else:
+                return render_template('otp_verification.html', 
+                                       error=error, 
+                                       phone=phone,
+                                       attempts_left=attempts_left)
+        
+        # OTP verified - create account
+        password = session.get('reg_password')
+        email = session.get('reg_email')
+        phone = session.get('reg_phone')
+        
+        if create_user(username, password, phone, email):
+            # Cleanup OTP
+            delete_otp(username)
+            
+            # Clear session
+            session.pop('reg_username', None)
+            session.pop('reg_email', None)
+            session.pop('reg_password', None)
+            session.pop('reg_phone', None)
+            
+            log_activity(username, 'register_success', 'Account created and verified via OTP')
+            
+            # Send welcome email directly
+            send_email(email, 'Welcome to Job Detection AI!', 
+                      f'Hello {username},\n\nYour account has been created successfully.\nYou can now login and start detecting job opportunities.\n\nWelcome to Job Detection AI!')
+            
+            success_msg = 'Registration successful! Your account has been created. Please login now.'
+            return render_template('login.html', success=success_msg)
+        else:
+            error = 'Failed to create account. Please try again.'
+            return render_template('otp_verification.html', error=error, phone=phone)
+    
+    # GET request - show OTP verification form
+    return render_template('otp_verification.html', phone=phone)
+
+
+@app.route('/regenerate-otp', methods=['POST'])
+def regenerate_otp():
+    if 'reg_username' not in session:
+        return redirect(url_for('register'))
+    
+    username = session.get('reg_username')
+    phone = session.get('reg_phone')
+    email = session.get('reg_email')
+    
+    # Generate new OTP
+    otp = generate_otp()
+    save_otp(username, phone, otp)
+    
+    # Send OTP via Firebase (tries Firebase, falls back to email)
+    otp_message = f"Your new OTP for Job Detection AI registration is: {otp}\n\nThis OTP will expire in 10 minutes.\n\nDo not share this OTP with anyone."
+    fcm_sent = send_sms(phone, otp_message)
+    
+    # If Firebase not available, send via email as fallback
+    if not fcm_sent and email:
+        print(f"[OTP] Sending new OTP to email as Firebase fallback for user: {username}")
+        send_otp_email(email, otp, username)
+    
+    log_activity(username, 'otp_regenerated', f'New OTP generated and sent via {"FCM" if fcm_sent else "Email"}')
+    
+    success_msg = 'New OTP has been sent. Check your device notification or email.'
+    return render_template('otp_verification.html', phone=phone, success=success_msg)
+
+
+@app.route('/register-device-token', methods=['POST'])
+def route_register_device_token():
+    """Register a device token for Firebase Cloud Messaging"""
+    data = request.get_json()
+    device_token = data.get('device_token')
+    phone = data.get('phone')
+    device_name = data.get('device_name', 'Unknown Device')
+    
+    if not device_token or not phone:
+        return jsonify({'success': False, 'message': 'Missing device_token or phone'}), 400
+    
+    result = register_device_token(phone, device_token, device_name)
+    return jsonify(result)
+
+
+@app.route('/firebase-messaging-sw.js')
+def firebase_service_worker():
+    """Serve Firebase service worker"""
+    return send_from_directory(os.path.dirname(__file__), 'firebase-messaging-sw.js', 
+                               mimetype='application/javascript')
+
 
 @app.route('/dashboard')
 def dashboard():
@@ -100,7 +280,18 @@ def dashboard():
         return redirect(url_for('login'))
     
     recent_activities = get_user_activities(session['username'], limit=5)
-    return render_template('dashboard.html', username=session['username'], recent_activities=recent_activities)
+    
+    # Get training statistics for dashboard
+    training_stats = get_training_statistics()
+    latest_metrics = get_latest_training_metrics()
+    training_history = get_all_training_metrics(limit=5)
+    
+    return render_template('dashboard.html', 
+                         username=session['username'], 
+                         recent_activities=recent_activities,
+                         training_stats=training_stats,
+                         latest_metrics=latest_metrics,
+                         training_history=training_history)
 
 @app.route('/profile')
 def profile():
@@ -161,8 +352,14 @@ def update_contact():
     if 'username' not in session:
         return jsonify({'success': False, 'message': 'Not logged in'}), 401
     
+    email = request.json.get('email', '')
+    phone = request.json.get('phone', '')
+    
+    # Save contact info to database
+    save_contact_info(session['username'], email, phone)
     log_activity(session['username'], 'profile', 'Updated contact information')
-    return jsonify({'success': True, 'email': request.json.get('email'), 'phone': request.json.get('phone'), 'country': request.json.get('country')})
+    
+    return jsonify({'success': True, 'email': email, 'phone': phone, 'country': request.json.get('country')})
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -172,8 +369,12 @@ def settings():
     if request.method == 'POST':
         dark_mode = int(request.form.get('dark_mode', 0))
         compact_view = int(request.form.get('compact_view', 0))
-        save_user_preferences(session['username'], dark_mode, compact_view)
-        log_activity(session['username'], 'settings', 'Updated appearance settings')
+        email_notifications = 1 if request.form.get('email_notifications') else 0
+        # SMS notifications removed
+        sms_notifications = 0  # SMS REMOVED - Always False
+        # sms_notifications = 1 if request.form.get('sms_notifications') else 0
+        save_user_preferences(session['username'], dark_mode, compact_view, email_notifications, sms_notifications)
+        log_activity(session['username'], 'settings', 'Updated appearance and notification settings')
         return redirect(url_for('settings'))
     
     preferences = get_user_preferences(session['username'])
@@ -216,6 +417,27 @@ def job_post_detector():
                 result.get('confidence', 0.0)
             )
             log_activity(session['username'], 'detection', f'Analyzed job post: {job_title}')
+            
+            # Send notification on job detection
+            prediction = result.get('prediction', 'Unknown')
+            confidence = result.get('confidence', 0.0) * 100
+            email_body = f"""
+Job Post Analysis Complete!
+
+Job Title: {job_title}
+Company: {company_name}
+Result: {prediction}
+Confidence: {confidence:.2f}%
+Location: {location or 'Not specified'}
+            """
+            sms_body = f"Job Detected: {job_title} at {company_name} | Result: {prediction} ({confidence:.1f}%)"
+            send_notification(
+                session['username'],
+                f'Job Post Analysis - {prediction}',
+                sms_body,
+                email_body,
+                sms_body
+            )
     
     # Get model information
     model_info = get_detector_info()
@@ -236,12 +458,12 @@ def upload():
         return redirect(url_for('login'))
     username = session['username']
     error = None
-    ALLOWED = {'.xls', '.xlsx'}
+    ALLOWED = {'.xls', '.xlsx', '.csv'}
     if request.method == 'POST':
         file = request.files.get('csv_file')
         ext = os.path.splitext(file.filename)[1].lower() if file and file.filename else ''
         if not file or not file.filename or ext not in ALLOWED:
-            error = 'Only Excel files (.xls, .xlsx) are allowed. PDF and other file types are not accepted.'
+            error = 'Only Excel and CSV files (.xls, .xlsx, .csv) are allowed. PDF and other file types are not accepted.'
         else:
             from datetime import datetime
             temp_name = f"temp_{uuid.uuid4().hex}{ext}"
@@ -254,6 +476,26 @@ def upload():
             os.rename(filepath, final_path)
             update_csv_filename(new_id, final_name)
             log_activity(username, 'upload', f'Uploaded file: {file.filename}')
+            
+            # Send notification on successful file upload
+            email_body = f"""
+Your file has been successfully uploaded!
+
+Filename: {file.filename}
+Size: {os.path.getsize(final_path) / 1024:.2f} KB
+Upload Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+You can now use this file to train your model!
+            """
+            sms_body = f"File Uploaded: {file.filename} | Ready for model training"
+            send_notification(
+                username,
+                'File Upload Successful',
+                sms_body,
+                email_body,
+                sms_body
+            )
+            
             return redirect(url_for('upload'))
     user_csvs = get_user_csvs(username)
     return render_template('upload.html', username=username, user_csvs=user_csvs, error=error)
@@ -325,6 +567,231 @@ def csv_delete(csv_id):
             os.remove(filepath)
         log_activity(session['username'], 'delete', f'Deleted CSV id {csv_id}')
     return redirect(url_for('upload'))
+
+@app.route('/train-model/<int:csv_id>', methods=['POST'])
+def train_model_route(csv_id):
+    """Train the ML model with a specific CSV file"""
+    if 'username' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    # Get the algorithm from the request
+    data = request.get_json() or {}
+    algorithm = data.get('algorithm', 'knn')
+    
+    # Get the CSV file from user's uploads
+    csvs = get_user_csvs(session['username'])
+    entry = next((c for c in csvs if c['id'] == csv_id), None)
+    
+    if not entry:
+        return jsonify({'success': False, 'message': 'File not found'}), 404
+    
+    # Get the file path
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], entry['filename'])
+    
+    if not os.path.exists(filepath):
+        return jsonify({'success': False, 'message': 'File does not exist'}), 404
+    
+    # Check if it's a CSV file
+    ext = os.path.splitext(entry['original_filename'])[1].lower()
+    
+    # Convert Excel to CSV if needed
+    temp_csv_path = None
+    if ext in ['.xls', '.xlsx']:
+        # Create a temporary CSV file
+        temp_csv_path = os.path.join(app.config['UPLOAD_FOLDER'], f'temp_train_{uuid.uuid4().hex}.csv')
+        try:
+            wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+            ws = wb.active
+            
+            with open(temp_csv_path, 'w', newline='', encoding='utf-8') as f:
+                csv_writer = csv.writer(f)
+                for row in ws.iter_rows(values_only=True):
+                    csv_writer.writerow([str(c) if c is not None else '' for c in row])
+            
+            wb.close()
+            filepath = temp_csv_path
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error converting Excel to CSV: {str(e)}'})
+    
+    # Retrain the model with specified algorithm
+    result = retrain_model(filepath, algorithm=algorithm)
+    
+    # Clean up temporary CSV if created
+    if temp_csv_path and os.path.exists(temp_csv_path):
+        os.remove(temp_csv_path)
+    
+    # Log the activity
+    if result['success']:
+        log_activity(session['username'], 'training', f'Trained model ({algorithm}) with: {entry["original_filename"]}')
+        
+        # Save training metrics to database for persistence
+        if result.get('metrics'):
+            metrics = result['metrics']
+            save_training_metrics(
+                algorithm=metrics.get('algorithm', algorithm),
+                accuracy=metrics.get('accuracy', 0),
+                precision=metrics.get('precision', 0),
+                recall=metrics.get('recall', 0),
+                f1_score=metrics.get('f1_score', 0),
+                training_samples=metrics.get('training_samples', 0),
+                features=metrics.get('features', 0),
+                confusion_matrix=metrics.get('confusion_matrix', [[0, 0], [0, 0]])
+            )
+            
+            # Send notification on successful training
+            accuracy_pct = metrics.get('accuracy', 0) * 100
+            email_body = f"""
+Your model has been successfully trained!
+
+Algorithm: {metrics.get('algorithm', algorithm)}
+Accuracy: {accuracy_pct:.2f}%
+Precision: {metrics.get('precision', 0) * 100:.2f}%
+Recall: {metrics.get('recall', 0) * 100:.2f}%
+F1 Score: {metrics.get('f1_score', 0) * 100:.2f}%
+Training Samples: {metrics.get('training_samples', 0)}
+
+Your model is now ready for making predictions!
+            """
+            sms_body = f"Model Training Complete! Accuracy: {accuracy_pct:.2f}% | Algorithm: {metrics.get('algorithm', algorithm)}"
+            send_notification(
+                session['username'],
+                'Model Training Complete',
+                sms_body,
+                email_body,
+                sms_body
+            )
+        
+        # Remove from session since it's now in database
+        session.pop('training_metrics', None)
+        session.pop('training_csv_id', None)
+    
+    return jsonify(result)
+
+@app.route('/api/scraped-jobs')
+def get_scraped_jobs():
+    """Get all scraped job data for dropdown population"""
+    if 'username' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    jobs = []
+    user_csvs = get_user_csvs(session['username'])
+    
+    for csv_entry in user_csvs:
+        # Check if this is a scraped file (starts with 'extract_')
+        if csv_entry['filename'].startswith('extract_'):
+            try:
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], csv_entry['filename'])
+                
+                # Read CSV file
+                with open(filepath, 'r', encoding='utf-8-sig') as f:
+                    # Try to detect if it's CSV or Excel
+                    if filepath.endswith('.csv'):
+                        import csv
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            # Map LinkedIn columns to expected format
+                            job = {
+                                'title': row.get('title', ''),
+                                'company': row.get('company', ''),
+                                'description': row.get('description', ''),
+                                'location': row.get('location', ''),
+                                'date_posted': row.get('date_posted', ''),
+                                'job_link': row.get('job_link', '')
+                            }
+                            jobs.append(job)
+                    else:
+                        # Handle Excel files
+                        import openpyxl
+                        wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+                        ws = wb.active
+                        headers = [cell.value for cell in ws[1]]
+                        
+                        for row in ws.iter_rows(min_row=2, values_only=True):
+                            row_dict = dict(zip(headers, row))
+                            job = {
+                                'title': row_dict.get('title', ''),
+                                'company': row_dict.get('company', ''),
+                                'description': row_dict.get('description', ''),
+                                'location': row_dict.get('location', ''),
+                                'date_posted': row_dict.get('date_posted', ''),
+                                'job_link': row_dict.get('job_link', '')
+                            }
+                            jobs.append(job)
+                        wb.close()
+                        
+            except Exception as e:
+                print(f"Error reading file {csv_entry['filename']}: {e}")
+                continue
+    
+    return jsonify({'jobs': jobs})
+
+@app.route('/extract-data', methods=['POST'])
+def extract_data():
+    if 'username' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    payload = request.json or {}
+    website = payload.get('website', '').strip().lower()
+    page_url = payload.get('url', '').strip()
+
+    if not website or not page_url:
+        return jsonify({'success': False, 'message': 'Website and URL are required.'}), 400
+
+    if website != 'linkedin':
+        return jsonify({'success': False, 'message': 'Only LinkedIn extraction is supported at this time.'}), 400
+
+    try:
+        # Import the scraper function only when needed
+        from linkedin_scraper import scrape_linkedin_to_csv
+        print(f"DEBUG: Starting extraction for URL: {page_url}")
+        
+        original_filename = f'linkedin_jobs_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        stored_filename = f'extract_{uuid.uuid4().hex}.csv'
+        output_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)
+        print(f"DEBUG: Output path: {output_path}")
+        
+        count = scrape_linkedin_to_csv(page_url, output_path, max_jobs=50)
+        print(f"DEBUG: Scraped {count} jobs")
+        
+        upload_id = save_csv_upload(session['username'], stored_filename, original_filename)
+        print(f"DEBUG: Upload ID: {upload_id}")
+
+        if not upload_id:
+            return jsonify({'success': False, 'message': 'Failed to save extracted file metadata.'}), 500
+
+        log_activity(session['username'], 'extract', f'Extracted {count} jobs from LinkedIn to {original_filename}')
+
+        return jsonify({
+            'success': True,
+            'message': f'Extracted {count} jobs to {original_filename}',
+            'filename': original_filename,
+            'csv_id': upload_id
+        })
+    except ImportError as e:
+        print(f"DEBUG: Import error: {e}")
+        return jsonify({'success': False, 'message': f'Import error: {str(e)}'}), 500
+    except Exception as e:
+        print(f"DEBUG: General error: {e}")
+        import traceback
+        traceback.print_exc()
+        error_msg = str(e)
+        if 'No job cards were found' in error_msg:
+            error_msg += ' Try using https://in.linkedin.com/jobs/search/ instead of https://www.linkedin.com/jobs/search/'
+        return jsonify({'success': False, 'message': f'Extraction failed: {error_msg}'}), 500
+
+@app.route('/api/training-metrics')
+def get_training_metrics():
+    """Get all training metrics from database"""
+    if 'username' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    try:
+        metrics = get_all_training_metrics(limit=20)
+        return jsonify({'success': True, 'metrics': metrics})
+    except Exception as e:
+        return jsonify({'error': f'Failed to get metrics: {str(e)}'}), 500
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
