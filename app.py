@@ -9,9 +9,13 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+# Session Management Constants (in minutes)
+SESSION_TIMEOUT = 15  # Total session duration 
+SESSION_WARNING_TIME = 13  # Show warning at 13 minutes
+
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_change_this'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=SESSION_TIMEOUT)
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -30,7 +34,16 @@ def inject_preferences():
 @app.before_request
 def make_session_permanent():
     session.permanent = True
-    app.permanent_session_lifetime = timedelta(hours=24)
+    app.permanent_session_lifetime = timedelta(minutes=SESSION_TIMEOUT)
+    
+    # Skip session check for login/register routes and static files
+    if request.path in [url_for('login'), url_for('register'), url_for('forgot_password'), url_for('check_username'), url_for('check_session_status')] or request.path.startswith('/static/') or request.path.startswith('/uploads/'):
+        return
+    
+    # Check if user is logged in
+    if 'username' in session:
+        # Update session expiry time
+        session.modified = True
 
 @app.route('/')
 def index():
@@ -538,6 +551,24 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+@app.route('/check-session-status', methods=['POST'])
+def check_session_status():
+    """Check if session is still valid and return time remaining"""
+    if 'username' not in session:
+        return jsonify({'valid': False, 'message': 'Session expired'}), 401
+    
+    # Get session creation/modification time
+    # Flask doesn't expose this directly, so we use the fact that
+    # the session will be sent to the client
+    # We'll calculate based on the WARNING and TIMEOUT constants
+    
+    return jsonify({
+        'valid': True,
+        'username': session.get('username'),
+        'session_timeout': SESSION_TIMEOUT,
+        'warning_time': SESSION_WARNING_TIME
+    })
+
 @app.route('/job-post-detector', methods=['GET', 'POST'])
 def job_post_detector():
     if 'username' not in session:
@@ -944,6 +975,17 @@ def get_training_metrics():
     except Exception as e:
         return jsonify({'error': f'Failed to get metrics: {str(e)}'}), 500
 
+
+# Error Handlers
+@app.errorhandler(404)
+def page_not_found(e):
+    """Redirect invalid routes to login page"""
+    return redirect(url_for('login'))
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    """Redirect method not allowed to login page"""
+    return redirect(url_for('login'))
 
 
 if __name__ == '__main__':

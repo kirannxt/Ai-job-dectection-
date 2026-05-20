@@ -376,5 +376,99 @@
             });
         }
     </script>
-</body>
-</html>
+
+    <!-- Session Warning Modal -->
+    <div id="sessionWarningModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 400px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <h2 style="margin-top: 0; color: #e74c3c;">⏰ Session Expiring Soon</h2>
+            <p style="font-size: 16px; color: #333; margin: 15px 0;">Your session will expire in <span id="countdownTime">2:00</span> minutes due to inactivity.</p>
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Would you like to continue your session?</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button onclick="extendSession()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Continue Session
+                </button>
+                <button onclick="logoutNow()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Logout Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SESSION_TIMEOUT = 15;
+        const SESSION_WARNING_TIME = 13;
+        let sessionCheckInterval;
+        let countdownInterval;
+        let warningShown = false;
+        let loginTime = new Date().getTime();
+        
+        function startSessionMonitoring() {
+            sessionCheckInterval = setInterval(checkSessionStatus, 10000);
+            checkSessionStatus();
+        }
+        
+        function checkSessionStatus() {
+            const currentTime = new Date().getTime();
+            const elapsedMinutes = (currentTime - loginTime) / (1000 * 60);
+            
+            if (elapsedMinutes >= SESSION_TIMEOUT) {
+                clearInterval(sessionCheckInterval);
+                clearInterval(countdownInterval);
+                window.location.href = '/logout';
+                return;
+            }
+            
+            if (elapsedMinutes >= SESSION_WARNING_TIME && !warningShown) {
+                showSessionWarning();
+            }
+            
+            fetch('/check-session-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    clearInterval(sessionCheckInterval);
+                    clearInterval(countdownInterval);
+                    window.location.href = '/login';
+                    return;
+                }
+                return response.json();
+            })
+            .catch(error => console.log('Session check error:', error));
+        }
+        
+        function showSessionWarning() {
+            if (warningShown) return;
+            warningShown = true;
+            const modal = document.getElementById('sessionWarningModal');
+            modal.style.display = 'flex';
+            let remainingSeconds = (SESSION_TIMEOUT - SESSION_WARNING_TIME) * 60;
+            countdownInterval = setInterval(() => {
+                remainingSeconds--;
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                document.getElementById('countdownTime').textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                if (remainingSeconds <= 0) {
+                    clearInterval(countdownInterval);
+                    logoutNow();
+                }
+            }, 1000);
+        }
+        
+        function extendSession() {
+            warningShown = false;
+            clearInterval(countdownInterval);
+            document.getElementById('sessionWarningModal').style.display = 'none';
+            loginTime = new Date().getTime();
+            fetch('/check-session-status', { method: 'POST' });
+        }
+        
+        function logoutNow() {
+            clearInterval(sessionCheckInterval);
+            clearInterval(countdownInterval);
+            window.location.href = '/logout';
+        }
+        
+        window.addEventListener('load', startSessionMonitoring);
+    </script>

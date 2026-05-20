@@ -419,5 +419,149 @@
             </div>
         </div>
     </div>
+
+    <!-- Session Warning Modal -->
+    <div id="sessionWarningModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 400px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <h2 style="margin-top: 0; color: #e74c3c;">⏰ Session Expiring Soon</h2>
+            <p style="font-size: 16px; color: #333; margin: 15px 0;">Your session will expire in <span id="countdownTime">2:00</span> minutes due to inactivity.</p>
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Would you like to continue your session?</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button onclick="extendSession()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Continue Session
+                </button>
+                <button onclick="logoutNow()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Logout Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Session Management Constants (must match app.py)
+        const SESSION_TIMEOUT = 15;  // 15 minutes in total
+        const SESSION_WARNING_TIME = 13;  // Show warning at 13 minutes
+        
+        let sessionCheckInterval;
+        let countdownInterval;
+        let warningShown = false;
+        let loginTime = new Date().getTime();  // Track when user logged in
+        let lastActivityTime = new Date().getTime();  // Track last user activity
+        
+        function startSessionMonitoring() {
+            // Check session status every 10 seconds
+            sessionCheckInterval = setInterval(checkSessionStatus, 10000);
+            // Initial check
+            checkSessionStatus();
+            
+            // Track user activity
+            document.addEventListener('click', resetInactivityTimer);
+            document.addEventListener('keypress', resetInactivityTimer);
+        }
+        
+        function resetInactivityTimer() {
+            if (!warningShown) {
+                lastActivityTime = new Date().getTime();
+            }
+        }
+        
+        function checkSessionStatus() {
+            const currentTime = new Date().getTime();
+            const elapsedMinutes = (currentTime - loginTime) / (1000 * 60);
+            
+            // Check if session should be expired
+            if (elapsedMinutes >= SESSION_TIMEOUT) {
+                clearInterval(sessionCheckInterval);
+                clearInterval(countdownInterval);
+                window.location.href = '/logout';
+                return;
+            }
+            
+            // Check if warning should be shown
+            if (elapsedMinutes >= SESSION_WARNING_TIME && !warningShown) {
+                showSessionWarning();
+            }
+            
+            // Validate with server
+            fetch('/check-session-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    // Session expired on server
+                    clearInterval(sessionCheckInterval);
+                    clearInterval(countdownInterval);
+                    window.location.href = '/login';
+                    return;
+                }
+                return response.json();
+            })
+            .catch(error => console.log('Session check error:', error));
+        }
+        
+        function showSessionWarning() {
+            if (warningShown) return;
+            warningShown = true;
+            
+            const modal = document.getElementById('sessionWarningModal');
+            modal.style.display = 'flex';
+            
+            // Start countdown from 2 minutes (SESSION_TIMEOUT - SESSION_WARNING_TIME)
+            let remainingSeconds = (SESSION_TIMEOUT - SESSION_WARNING_TIME) * 60;
+            
+            countdownInterval = setInterval(() => {
+                remainingSeconds--;
+                
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                const timeDisplay = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                document.getElementById('countdownTime').textContent = timeDisplay;
+                
+                if (remainingSeconds <= 0) {
+                    clearInterval(countdownInterval);
+                    logoutNow();
+                }
+            }, 1000);
+        }
+        
+        function extendSession() {
+            // Reset login time to extend session
+            warningShown = false;
+            clearInterval(countdownInterval);
+            const modal = document.getElementById('sessionWarningModal');
+            modal.style.display = 'none';
+            
+            // Reset the login time to now, effectively extending the session
+            loginTime = new Date().getTime();
+            lastActivityTime = new Date().getTime();
+            
+            // Make request to refresh session on server
+            fetch('/check-session-status', { method: 'POST' })
+            .then(() => {
+                // Session refreshed, continue
+            });
+        }
+        
+        function logoutNow() {
+            clearInterval(sessionCheckInterval);
+            clearInterval(countdownInterval);
+            window.location.href = '/logout';
+        }
+        
+        // Start monitoring when page loads
+        window.addEventListener('load', startSessionMonitoring);
+        
+        // Also refresh session on user activity
+        document.addEventListener('click', () => {
+            if (warningShown) return;  // If warning is already shown, don't reset
+        });
+        
+        document.addEventListener('keypress', () => {
+            if (warningShown) return;  // If warning is already shown, don't reset
+        });
+    </script>
 </body>
 </html>
