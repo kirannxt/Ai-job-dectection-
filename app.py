@@ -634,7 +634,8 @@ def model_info():
         return redirect(url_for('login'))
     
     info = get_detector_info()
-    return render_template('model_info.html', username=session['username'], model_info=info)
+    user_prefs = get_user_preferences(session['username'])
+    return render_template('model_info.html', username=session['username'], model_info=info, user_preferences=user_prefs)
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():

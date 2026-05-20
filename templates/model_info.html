@@ -152,9 +152,15 @@
                     <span class="info-value">{{ model_info.features }}</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Number of Neighbors (k):</span>
-                    <span class="info-value">{{ model_info.neighbors }}</span>
+                    <span class="info-label">Data Source:</span>
+                    <span class="info-value">{{ model_info.data_source }}</span>
                 </div>
+                {% if model_info.trained_at %}
+                <div class="info-row">
+                    <span class="info-label">Last Trained:</span>
+                    <span class="info-value">{{ model_info.trained_at }}</span>
+                </div>
+                {% endif %}
             </div>
 
             <div class="info-card">
@@ -178,8 +184,11 @@
             <div class="info-card">
                 <h3>How It Works</h3>
                 <p style="color: #555; line-height: 1.8; margin-bottom: 15px;">
-                    The ML model uses a <strong>K-Neighbors Classifier (KNN)</strong> trained on both fake and legitimate job postings. 
-                    This algorithm classifies new job posts by finding the k (5) nearest training samples and using their labels to make predictions.
+                    The ML model uses <strong>{{ model_info.model_type }}</strong> trained on both fake and legitimate job postings. 
+                    This algorithm analyzes training data with {{ model_info.features }} features and classifies new job posts based on learned patterns.
+                </p>
+                <p style="color: #555; line-height: 1.8; margin-bottom: 15px;">
+                    <strong>Training Dataset:</strong> {{ model_info.training_samples }} samples ({{ model_info.fake_samples }} fake, {{ model_info.legitimate_samples }} legitimate)
                 </p>
                 <p style="color: #555; line-height: 1.8; margin-bottom: 15px;">
                     <strong>Key Features Analyzed:</strong>
