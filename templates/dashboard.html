@@ -6,6 +6,8 @@
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+    <!-- Chart.js for training metrics visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
         body.dark-mode {
             background: #1a1a1a;
@@ -301,6 +303,72 @@
         body.dark-mode .metric-value {
             color: #e0e0e0;
         }
+        .metrics-chart-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+            grid-column: 1 / -1;
+        }
+        body.dark-mode .metrics-chart-container {
+            background: #252525;
+        }
+        .metrics-chart-container h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        body.dark-mode .metrics-chart-container h3 {
+            color: #e0e0e0;
+        }
+        #metricsChart {
+            max-height: 400px;
+            min-height: 300px;
+        }
+        .chart-stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        body.dark-mode .chart-stats-row {
+            border-top-color: #444;
+        }
+        .chart-stat-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+        body.dark-mode .chart-stat-box {
+            background: #1a1a1a;
+            border-left-color: #764ba2;
+        }
+        .chart-stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        body.dark-mode .chart-stat-value {
+            color: #9db2ff;
+        }
+        .chart-stat-label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        body.dark-mode .chart-stat-label {
+            color: #888;
+        }
     </style>
 </head>
 <body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
@@ -349,6 +417,35 @@
             </div>
             {% endif %}
         </div>
+
+        {% if training_history and training_history|length > 0 %}
+        <div class="metrics-chart-container" style="margin-top: 40px;">
+            <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                <span style="font-size: 24px; margin-right: 10px;">📊</span>
+                <h3 style="margin: 0;">Model Training Performance Metrics</h3>
+            </div>
+            <canvas id="metricsChart"></canvas>
+            
+            <div class="chart-stats-row" style="margin-top: 30px;">
+                <div class="chart-stat-box">
+                    <div class="chart-stat-value">{{ "%.2f"|format(latest_metrics.accuracy * 100 if latest_metrics and latest_metrics.accuracy else 0) }}%</div>
+                    <div class="chart-stat-label">Accuracy</div>
+                </div>
+                <div class="chart-stat-box">
+                    <div class="chart-stat-value">{{ "%.2f"|format(latest_metrics.precision * 100 if latest_metrics and latest_metrics.precision else 0) }}%</div>
+                    <div class="chart-stat-label">Precision</div>
+                </div>
+                <div class="chart-stat-box">
+                    <div class="chart-stat-value">{{ "%.2f"|format(latest_metrics.recall * 100 if latest_metrics and latest_metrics.recall else 0) }}%</div>
+                    <div class="chart-stat-label">Recall</div>
+                </div>
+                <div class="chart-stat-box">
+                    <div class="chart-stat-value">{{ "%.2f"|format(latest_metrics.f1_score * 100 if latest_metrics and latest_metrics.f1_score else 0) }}%</div>
+                    <div class="chart-stat-label">F1 Score</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <div class="content-grid" style="margin-top: 30px;">
             <div class="card">
@@ -563,6 +660,169 @@
         document.addEventListener('keypress', () => {
             if (warningShown) return;  // If warning is already shown, don't reset
         });
+        
+        // Chart.js Metrics Rendering
+        function initializeMetricsChart() {
+            const canvas = document.getElementById('metricsChart');
+            if (!canvas) return;
+            
+            // Parse training history data from template
+            const trainingHistory = {{ training_history | tojson if training_history else '[]' }};
+            
+            if (!trainingHistory || trainingHistory.length === 0) return;
+            
+            // Prepare data for chart
+            const labels = trainingHistory.map(t => {
+                const date = new Date(t.trained_at);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            });
+            
+            const accuracyData = trainingHistory.map(t => (t.accuracy * 100).toFixed(2));
+            const precisionData = trainingHistory.map(t => (t.precision * 100).toFixed(2) || 0);
+            const recallData = trainingHistory.map(t => (t.recall * 100).toFixed(2) || 0);
+            const f1Data = trainingHistory.map(t => (t.f1_score * 100).toFixed(2));
+            
+            // Determine dark mode
+            const isDarkMode = document.body.classList.contains('dark-mode') || 
+                              localStorage.getItem('darkMode') === 'true';
+            const textColor = isDarkMode ? '#e0e0e0' : '#333';
+            const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+            const bgColor = isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.5)';
+            
+            const ctx = canvas.getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Accuracy',
+                            data: accuracyData,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#667eea',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 7
+                        },
+                        {
+                            label: 'F1 Score',
+                            data: f1Data,
+                            borderColor: '#764ba2',
+                            backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#764ba2',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 7
+                        },
+                        {
+                            label: 'Precision',
+                            data: precisionData,
+                            borderColor: '#f093fb',
+                            backgroundColor: 'rgba(240, 147, 251, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#f093fb',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 7
+                        },
+                        {
+                            label: 'Recall',
+                            data: recallData,
+                            borderColor: '#4facfe',
+                            backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#4facfe',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 7
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: textColor,
+                                font: { size: 12, weight: 'bold' },
+                                padding: 15,
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: '#667eea',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(2) + '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: {
+                                color: gridColor,
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: textColor,
+                                font: { size: 11 },
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false,
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: textColor,
+                                font: { size: 11 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Initialize chart when page loads
+        window.addEventListener('load', initializeMetricsChart);
     </script>
 </body>
 </html>
