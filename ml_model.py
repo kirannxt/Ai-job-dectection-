@@ -111,8 +111,14 @@ class FakeJobPostDetector:
             from sklearn.ensemble import RandomForestClassifier
             from sklearn.linear_model import LogisticRegression
             from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+            from sklearn.model_selection import train_test_split
             
-            # Create TF-IDF vectorizer
+            # Split data into training (80%) and test (20%) sets
+            X_train_text, X_test_text, y_train, y_test = train_test_split(
+                self.training_data, self.labels, test_size=0.2, random_state=42, stratify=self.labels
+            )
+            
+            # Create TF-IDF vectorizer and fit on training data only
             self.vectorizer = TfidfVectorizer(
                 max_features=200,
                 stop_words='english',
@@ -122,8 +128,9 @@ class FakeJobPostDetector:
                 max_df=0.9
             )
             
-            # Transform training texts
-            X = self.vectorizer.fit_transform(self.training_data)
+            # Fit vectorizer on training texts and transform both sets
+            X_train = self.vectorizer.fit_transform(X_train_text)
+            X_test = self.vectorizer.transform(X_test_text)
             
             # Create model based on algorithm selection
             if algorithm == 'random_forest':
@@ -133,30 +140,34 @@ class FakeJobPostDetector:
             else:  # Default to KNN
                 self.model = KNeighborsClassifier(n_neighbors=5, weights='distance', algorithm='auto')
             
-            # Train the model
-            self.model.fit(X, self.labels)
+            # Train the model on training set
+            self.model.fit(X_train, y_train)
             self.algorithm = algorithm
             self.trained_at = datetime.now().isoformat()
             
-            # Calculate metrics
-            y_pred = self.model.predict(X)
-            cm = confusion_matrix(self.labels, y_pred)
+            # Calculate metrics on TEST set (unseen data)
+            y_pred = self.model.predict(X_test)
+            cm = confusion_matrix(y_test, y_pred)
             
             self.training_metrics = {
                 'algorithm': algorithm,
-                'accuracy': float(accuracy_score(self.labels, y_pred)),
-                'precision': float(precision_score(self.labels, y_pred, zero_division=0)),
-                'recall': float(recall_score(self.labels, y_pred, zero_division=0)),
-                'f1_score': float(f1_score(self.labels, y_pred, zero_division=0)),
+                'accuracy': float(accuracy_score(y_test, y_pred)),
+                'precision': float(precision_score(y_test, y_pred, zero_division=0)),
+                'recall': float(recall_score(y_test, y_pred, zero_division=0)),
+                'f1_score': float(f1_score(y_test, y_pred, zero_division=0)),
                 'confusion_matrix': cm.tolist(),
                 'training_samples': len(self.training_data),
-                'features': X.shape[1],
+                'features': X_train.shape[1],
                 'trained_at': self.trained_at
             }
             
             print(f"[OK] Model trained successfully with {algorithm.upper()}")
             print(f"  - Accuracy: {self.training_metrics['accuracy']:.2%}")
-            print(f"  - Features: {X.shape[1]}")
+            print(f"  - Precision: {self.training_metrics['precision']:.2%}")
+            print(f"  - Recall: {self.training_metrics['recall']:.2%}")
+            print(f"  - F1 Score: {self.training_metrics['f1_score']:.2%}")
+            print(f"  - Features: {X_train.shape[1]}")
+            print(f"  - Training samples used: {len(X_train_text)}")
             
         except Exception as e:
             print(f"Error training model: {str(e)}")
