@@ -959,8 +959,18 @@ def extract_data():
         import traceback
         traceback.print_exc()
         error_msg = str(e)
-        if 'No job cards were found' in error_msg:
+        
+        # Provide helpful error messages for common scenarios
+        if 'timed out' in error_msg.lower() or 'timeout' in error_msg.lower():
+            error_msg = ('LinkedIn blocked the request (timeout). This usually happens when LinkedIn detects automated access. '
+                        'Try again in a few minutes, or use a different LinkedIn URL. '
+                        'You can also extract data from a CSV file instead.')
+        elif 'No job cards were found' in error_msg:
             error_msg += ' Try using https://in.linkedin.com/jobs/search/ instead of https://www.linkedin.com/jobs/search/'
+        elif 'blocked' in error_msg.lower():
+            error_msg = ('LinkedIn has blocked the request. This is a security measure by LinkedIn. '
+                        'Try again later, use a VPN, or extract data from a CSV file instead.')
+        
         return jsonify({'success': False, 'message': f'Extraction failed: {error_msg}'}), 500
 
 @app.route('/api/training-metrics')

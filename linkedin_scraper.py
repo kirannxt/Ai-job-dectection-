@@ -14,6 +14,7 @@ import csv
 import re
 import sys
 import time
+import random
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -23,6 +24,7 @@ try:
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.chrome.options import Options
+    from selenium.common.exceptions import TimeoutException
     from webdriver_manager.chrome import ChromeDriverManager
     _HAS_SELENIUM = True
 except ImportError:
@@ -41,6 +43,15 @@ USER_AGENT = (
     '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 )
 
+# Rotate user agents to avoid detection
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+]
+
 DEFAULT_HEADERS = {
     'User-Agent': USER_AGENT,
     'Accept-Language': 'en-US,en;q=0.9',
@@ -56,72 +67,97 @@ DEFAULT_HEADERS = {
     'Cache-Control': 'max-age=0',
 }
 
-def fetch_html_selenium(url, timeout=30):
-    """Fetch HTML from LinkedIn using Selenium (renders JavaScript)."""
+def fetch_html_selenium(url, timeout=30, max_retries=3, initial_delay=2):
+    """Fetch HTML from LinkedIn using Selenium (renders JavaScript) with retry logic."""
     if not _HAS_SELENIUM:
         print("ERROR: Selenium not installed. Falling back to mock data.")
         return None
     
-    driver = None
-    try:
-        print(f"DEBUG: Starting Selenium browser for {url}")
-        
-        # Configure Chrome options for headless browsing
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920,1080")
-        
-        # Initialize Chrome driver
-        driver = webdriver.Chrome(
-            service=webdriver.chrome.service.Service(ChromeDriverManager().install()),
-            options=chrome_options
-        )
-        
-        print(f"DEBUG: Browser opened, navigating to {url}")
-        driver.get(url)
-        
-        # Wait for job listings to load
-        print("DEBUG: Waiting for job listings to load...")
-        wait = WebDriverWait(driver, timeout)
-        
+    for attempt in range(max_retries):
+        driver = None
         try:
-            # Wait for job cards to appear
-            wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "job-card-container")))
-            print("DEBUG: Job cards loaded (selector: job-card-container)")
-        except:
+            print(f"DEBUG: Starting Selenium browser attempt {attempt + 1}/{max_retries} for {url}")
+            
+            # Add random delay to avoid rate limiting
+            delay = initial_delay * (2 ** attempt) + random.uniform(0, 3)
+            if attempt > 0:
+                print(f"DEBUG: Waiting {delay:.1f}s before retry...")
+                time.sleep(delay)
+            
+            # Configure Chrome options for headless browsing
+            chrome_options = Options()
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            chrome_options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--disable-plugins")
+            
+            # Initialize Chrome driver with timeout
+            driver = webdriver.Chrome(
+                service=webdriver.chrome.service.Service(ChromeDriverManager().install()),
+                options=chrome_options
+            )
+            driver.set_page_load_timeout(timeout)
+            
+            print(f"DEBUG: Browser opened, navigating to {url}")
+            driver.get(url)
+            
+            # Add random delay after page load
+            time.sleep(random.uniform(1, 3))
+            
+            # Wait for job listings to load
+            print("DEBUG: Waiting for job listings to load...")
+            wait = WebDriverWait(driver, timeout)
+            
             try:
-                wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "[data-job-id]")))
-                print("DEBUG: Job cards loaded (using data-job-id selector)")
+                # Wait for job cards to appear
+                wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "job-card-container")))
+                print("DEBUG: Job cards loaded (selector: job-card-container)")
             except:
-                print("DEBUG: Timeout waiting for job cards, proceeding anyway...")
-        
-        # Scroll to load more jobs
-        print("DEBUG: Scrolling to load more jobs...")
-        for i in range(5):
-            driver.execute_script("window.scrollBy(0, 500)")
-            time.sleep(1)  # Wait for jobs to load
-        
-        # Get page HTML
-        html = driver.page_source
-        print(f"DEBUG: Page HTML fetched, size: {len(html)} bytes")
-        
-        return html
-        
-    except Exception as e:
-        print(f"DEBUG: Error fetching with Selenium: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
-        
-    finally:
-        if driver:
-            driver.quit()
-            print("DEBUG: Browser closed")
+                try:
+                    wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "[data-job-id]")))
+                    print("DEBUG: Job cards loaded (using data-job-id selector)")
+                except:
+                    print("DEBUG: Timeout waiting for job cards, proceeding anyway...")
+            
+            # Scroll to load more jobs with delays
+            print("DEBUG: Scrolling to load more jobs...")
+            for i in range(5):
+                driver.execute_script("window.scrollBy(0, 500)")
+                time.sleep(random.uniform(0.8, 1.5))  # Random delay between scrolls
+            
+            # Get page HTML
+            html = driver.page_source
+            print(f"DEBUG: Page HTML fetched, size: {len(html)} bytes")
+            
+            return html
+            
+        except TimeoutException as e:
+            print(f"DEBUG: Timeout on attempt {attempt + 1}: {e}")
+            if attempt == max_retries - 1:
+                print(f"ERROR: Request timed out after {max_retries} attempts. LinkedIn may have blocked the request.")
+                return None
+            continue
+            
+        except Exception as e:
+            print(f"DEBUG: Error on attempt {attempt + 1}: {e}")
+            import traceback
+            traceback.print_exc()
+            if attempt == max_retries - 1:
+                return None
+            continue
+            
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                    print("DEBUG: Browser closed")
+                except:
+                    pass
 
 def fetch_html(url, timeout=20):
     """Fetch HTML content from a URL using a browser-like request with gzip support."""
