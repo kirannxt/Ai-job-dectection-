@@ -5,9 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - Ai-fake-job</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
 </head>
 <body class="auth-page">
     <div class="login-container">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <img src="{{ url_for('static', filename='images/ai-fake-job-logo.png') }}" alt="Ai-fake-job Logo" style="width: 120px; height: 60px; object-fit: contain;">
+        </div>
         <h1>Create Account</h1>
         <p style="text-align: center; color: #666; margin-bottom: 20px;">
             Join Ai-fake-job and start detecting job opportunities
