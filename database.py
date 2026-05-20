@@ -169,6 +169,14 @@ def get_user_id(username):
     conn.close()
     return result[0] if result else None
 
+def get_user_email(username):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT email FROM users WHERE username = ?', (username,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else None
+
 def save_job_detection(username, job_title, company_name, job_description, salary, location, prediction, confidence):
     user_id = get_user_id(username)
     if not user_id:

@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
 from datetime import timedelta, datetime
 from ml_model import process_job_post, get_detector_info, retrain_model
-from database import init_db, create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename, save_training_metrics, get_latest_training_metrics, get_all_training_metrics, get_training_statistics, save_contact_info, get_contact_info, send_notification, send_email, generate_otp, save_otp, verify_otp as verify_otp_db, is_otp_verified, delete_otp, send_otp_email
+from database import init_db, create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename, save_training_metrics, get_latest_training_metrics, get_all_training_metrics, get_training_statistics, save_contact_info, get_contact_info, send_notification, send_email, generate_otp, save_otp, verify_otp as verify_otp_db, is_otp_verified, delete_otp, send_otp_email, get_user_email, send_sms
 # SMS/Phone options removed: send_sms, register_device_token, get_device_tokens
 import os, csv, uuid
 import openpyxl
@@ -46,6 +46,33 @@ def login():
         password = request.form.get('password')
         
         if verify_user(username, password):
+            # Check if user has email notifications disabled (OTP required at login)
+            user_prefs = get_user_preferences(username)
+            
+            if not user_prefs['email_notifications']:
+                # Email notifications disabled - require OTP verification at login
+                user_email = get_user_email(username)
+                if user_email:
+                    # Generate OTP for login verification
+                    otp = generate_otp()
+                    save_otp(username, None, otp)
+                    
+                    # Send OTP via email
+                    email_sent = send_otp_email(user_email, otp, username)
+                    if not email_sent:
+                        print(f"[LOGIN OTP] Warning: Failed to send OTP email to {user_email}")
+                    else:
+                        print(f"[LOGIN OTP] OTP {otp} sent via email to {user_email}")
+                    
+                    # Store login attempt in session
+                    session['login_username'] = username
+                    session['login_password'] = password
+                    
+                    log_activity(username, 'login_attempt', 'Login attempted - OTP verification required')
+                    
+                    return redirect(url_for('verify_login_otp'))
+            
+            # Normal login flow (email notifications enabled or no preference set)
             session['username'] = username
             log_activity(username, 'login', 'Logged in')
             
@@ -56,7 +83,7 @@ Welcome back, {username}!
 
 Login Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-You're now connected to your Job Detection AI system.
+You're now connected to your Ai-fake-job system.
             """
             # SMS notification removed
             send_notification(
@@ -97,6 +124,7 @@ def register():
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
+        email_notifications = 1 if request.form.get('email_notifications') else 0
         # phone = request.form.get('phone', '').strip()  # SMS REMOVED
         phone = None  # SMS REMOVED - Phone field commented out
         error = None
@@ -128,28 +156,48 @@ def register():
             error = 'Username already exists'
             return render_template('register.html', error=error)
         
-        # Generate OTP
-        otp = generate_otp()
-        save_otp(username, phone, otp)
-        
-        # Send OTP via email
-        email_sent = send_otp_email(email, otp, username)
-        if not email_sent:
-            print(f"[OTP] Warning: Failed to send OTP email to {email}")
+        if email_notifications:
+            # Email notifications enabled - require OTP during registration (original flow)
+            # Generate OTP
+            otp = generate_otp()
+            save_otp(username, phone, otp)
+            
+            # Send OTP via email
+            email_sent = send_otp_email(email, otp, username)
+            if not email_sent:
+                print(f"[OTP] Warning: Failed to send OTP email to {email}")
+            else:
+                print(f"[OTP] OTP {otp} sent via email to {email}")
+            
+            print(f"[OTP] OTP {otp} generated for user: {username}")
+            
+            # Store registration data temporarily in session
+            session['reg_username'] = username
+            session['reg_email'] = email
+            session['reg_password'] = password
+            session['reg_phone'] = phone
+            
+            log_activity(username, 'register_attempt', f'Registration started - OTP verification required')
+            
+            return redirect(url_for('verify_otp'))
         else:
-            print(f"[OTP] OTP {otp} sent via email to {email}")
-        
-        print(f"[OTP] OTP {otp} generated for user: {username}")
-        
-        # Store registration data temporarily in session
-        session['reg_username'] = username
-        session['reg_email'] = email
-        session['reg_password'] = password
-        session['reg_phone'] = phone
-        
-        log_activity(username, 'register_attempt', f'Registration started - OTP verification required')
-        
-        return redirect(url_for('verify_otp'))
+            # Email notifications disabled - skip OTP during registration, will require OTP at login
+            if create_user(username, password, phone, email):
+                # Save user preferences with email_notifications disabled
+                save_user_preferences(username, 0, 0, email_notifications, 0)
+                
+                # Log activity
+                log_activity(username, 'register_success', 'Account created without registration OTP - OTP required at login')
+                
+                # Send welcome email
+                send_email(email, 'Welcome to Ai-fake-job!', 
+                          f'Hello {username},\n\nYour account has been created successfully.\nYou can now login and you will need to verify with OTP at login time.\n\nWelcome to Ai-fake-job!')
+                
+                success_msg = 'Registration successful! Your account has been created. Please login now - you will need to verify with OTP.'
+                return render_template('login.html', success=success_msg)
+            else:
+                error = 'Failed to create account. Please try again.'
+                return render_template('register.html', error=error)
     
     return render_template('register.html')
 
@@ -211,8 +259,8 @@ def verify_otp():
             log_activity(username, 'register_success', 'Account created and verified via OTP')
             
             # Send welcome email directly
-            send_email(email, 'Welcome to Job Detection AI!', 
-                      f'Hello {username},\n\nYour account has been created successfully.\nYou can now login and start detecting job opportunities.\n\nWelcome to Job Detection AI!')
+            send_email(email, 'Welcome to Ai-fake-job!', 
+                      f'Hello {username},\n\nYour account has been created successfully.\nYou can now login and start detecting job opportunities.\n\nWelcome to Ai-fake-job!')
             
             success_msg = 'Registration successful! Your account has been created. Please login now.'
             return render_template('login.html', success=success_msg)
@@ -238,7 +286,7 @@ def regenerate_otp():
     save_otp(username, phone, otp)
     
     # Send OTP via Firebase (tries Firebase, falls back to email)
-    otp_message = f"Your new OTP for Job Detection AI registration is: {otp}\n\nThis OTP will expire in 10 minutes.\n\nDo not share this OTP with anyone."
+    otp_message = f"Your new OTP for Ai-fake-job registration is: {otp}\n\nThis OTP will expire in 10 minutes.\n\nDo not share this OTP with anyone."
     fcm_sent = send_sms(phone, otp_message)
     
     # If Firebase not available, send via email as fallback
@@ -250,6 +298,111 @@ def regenerate_otp():
     
     success_msg = 'New OTP has been sent. Check your device notification or email.'
     return render_template('otp_verification.html', phone=phone, success=success_msg)
+
+
+@app.route('/verify-login-otp', methods=['GET', 'POST'])
+def verify_login_otp():
+    # Check if user has initiated login with OTP requirement
+    if 'login_username' not in session:
+        error = 'Please login again'
+        return render_template('login.html', error=error)
+    
+    username = session.get('login_username')
+    
+    if request.method == 'POST':
+        otp_input = request.form.get('otp', '').strip()
+        error = None
+        
+        if not otp_input:
+            error = 'OTP is required'
+            return render_template('login_otp_verification.html', error=error)
+        
+        # Verify OTP
+        result = verify_otp_db(username, otp_input)
+        
+        if not result['success']:
+            error = result['message']
+            attempts_left = result.get('attempts', 2)
+            max_attempts = result.get('max_attempts', 2)
+            
+            # If max attempts reached, offer regeneration
+            if attempts_left == 0:
+                return render_template('login_otp_verification.html', 
+                                       error=error,
+                                       attempts_exhausted=True,
+                                       show_regenerate=True)
+            else:
+                return render_template('login_otp_verification.html', 
+                                       error=error,
+                                       attempts_left=attempts_left)
+        
+        # OTP verified - complete login
+        password = session.get('login_password')
+        
+        # Cleanup OTP
+        delete_otp(username)
+        
+        # Clear session login attempt variables
+        session.pop('login_username', None)
+        session.pop('login_password', None)
+        
+        # Set logged in session
+        session['username'] = username
+        
+        log_activity(username, 'login_success', 'Account verified via login OTP')
+        
+        # Send welcome notification on login
+        from datetime import datetime
+        user_email = get_user_email(username)
+        email_body = f"""
+Welcome back, {username}!
+
+Login Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+You're now connected to your Ai-fake-job system.
+        """
+        send_notification(
+            username,
+            'Welcome Back',
+            email_body,
+            email_body,
+            email_body
+        )
+        
+        return redirect(url_for('dashboard'))
+    
+    # GET request - show login OTP verification form
+    return render_template('login_otp_verification.html')
+
+
+@app.route('/regenerate-login-otp', methods=['POST'])
+def regenerate_login_otp():
+    if 'login_username' not in session:
+        return redirect(url_for('login'))
+    
+    username = session.get('login_username')
+    user_email = get_user_email(username)
+    
+    if not user_email:
+        error = 'Could not retrieve email for OTP'
+        return render_template('login_otp_verification.html', error=error)
+    
+    # Generate new OTP
+    otp = generate_otp()
+    save_otp(username, None, otp)
+    
+    # Send OTP via email
+    email_sent = send_otp_email(user_email, otp, username)
+    
+    if not email_sent:
+        print(f"[LOGIN OTP] Warning: Failed to send OTP email to {user_email}")
+    else:
+        print(f"[LOGIN OTP] OTP {otp} sent via email to {user_email}")
+    
+    log_activity(username, 'login_otp_regenerated', 'New OTP generated and sent via Email')
+    
+    success_msg = 'New OTP has been sent to your registered email address.'
+    return render_template('login_otp_verification.html', success=success_msg)
 
 
 @app.route('/register-device-token', methods=['POST'])
