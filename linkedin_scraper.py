@@ -67,8 +67,8 @@ DEFAULT_HEADERS = {
     'Cache-Control': 'max-age=0',
 }
 
-def fetch_html_selenium(url, timeout=30, max_retries=3, initial_delay=2):
-    """Fetch HTML from LinkedIn using Selenium (renders JavaScript) with retry logic."""
+def fetch_html_selenium(url, timeout=45, max_retries=2, initial_delay=3):
+    """Fetch HTML from LinkedIn using Selenium with anti-detection measures."""
     if not _HAS_SELENIUM:
         print("ERROR: Selenium not installed. Falling back to mock data.")
         return None
@@ -76,86 +76,153 @@ def fetch_html_selenium(url, timeout=30, max_retries=3, initial_delay=2):
     for attempt in range(max_retries):
         driver = None
         try:
-            print(f"DEBUG: Starting Selenium browser attempt {attempt + 1}/{max_retries} for {url}")
+            print(f"DEBUG: Starting Selenium browser attempt {attempt + 1}/{max_retries}")
             
-            # Add random delay to avoid rate limiting
-            delay = initial_delay * (2 ** attempt) + random.uniform(0, 3)
+            # Increase delay significantly for each retry
+            delay = (initial_delay * (3 ** attempt)) + random.uniform(2, 5)
             if attempt > 0:
-                print(f"DEBUG: Waiting {delay:.1f}s before retry...")
+                print(f"DEBUG: Waiting {delay:.1f}s before retry (backoff)...")
                 time.sleep(delay)
             
-            # Configure Chrome options for headless browsing
+            # Add pre-request delay to simulate human behavior
+            print("DEBUG: Simulating human behavior (waiting before request)...")
+            time.sleep(random.uniform(1, 2))
+            
+            # Configure Chrome options to avoid detection
             chrome_options = Options()
-            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--headless=new")  # New headless mode is less detectable
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
+            
+            # Anti-detection arguments
             chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-            chrome_options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
+            chrome_options.add_argument("--user-data-dir=/tmp/chromium")
+            
+            # User agent
+            selected_agent = random.choice(USER_AGENTS)
+            chrome_options.add_argument(f"user-agent={selected_agent}")
+            print(f"DEBUG: Using user agent: {selected_agent[:80]}...")
+            
+            # Display settings
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument("--start-maximized")
+            
+            # Disable detection
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-plugins")
+            chrome_options.add_argument("--disable-component-extensions-with-background-pages")
+            chrome_options.add_argument("--disable-default-apps")
             
-            # Initialize Chrome driver with timeout
+            # Preferences to avoid detection
+            prefs = {
+                "profile.default_content_settings.popups": 0,
+                "profile.managed_default_content_settings.images": 1,
+            }
+            chrome_options.add_experimental_option("prefs", prefs)
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            chrome_options.add_experimental_option("useAutomationExtension", False)
+            
+            print("DEBUG: Initializing Chrome driver...")
             driver = webdriver.Chrome(
                 service=webdriver.chrome.service.Service(ChromeDriverManager().install()),
                 options=chrome_options
             )
-            driver.set_page_load_timeout(timeout)
             
-            print(f"DEBUG: Browser opened, navigating to {url}")
+            # Set longer timeouts
+            driver.set_page_load_timeout(timeout)
+            driver.implicitly_wait(timeout)
+            
+            # Inject JavaScript to mask automation
+            print("DEBUG: Injecting anti-detection JavaScript...")
+            driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+                'source': '''
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => false,
+                    });
+                    Object.defineProperty(navigator, 'plugins', {
+                        get: () => [1, 2, 3, 4, 5],
+                    });
+                    Object.defineProperty(navigator, 'languages', {
+                        get: () => ['en-US', 'en'],
+                    });
+                '''
+            })
+            
+            print(f"DEBUG: Navigating to {url}")
             driver.get(url)
             
-            # Add random delay after page load
-            time.sleep(random.uniform(1, 3))
+            # Wait longer after page load
+            print("DEBUG: Waiting after page load...")
+            time.sleep(random.uniform(3, 6))
             
-            # Wait for job listings to load
-            print("DEBUG: Waiting for job listings to load...")
+            # Wait for job listings
+            print("DEBUG: Waiting for job listings...")
             wait = WebDriverWait(driver, timeout)
             
-            try:
-                # Wait for job cards to appear
-                wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "job-card-container")))
-                print("DEBUG: Job cards loaded (selector: job-card-container)")
-            except:
-                try:
-                    wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "[data-job-id]")))
-                    print("DEBUG: Job cards loaded (using data-job-id selector)")
-                except:
-                    print("DEBUG: Timeout waiting for job cards, proceeding anyway...")
+            job_found = False
+            selectors_to_try = [
+                (By.CLASS_NAME, "job-card-container"),
+                (By.CSS_SELECTOR, "[data-job-id]"),
+                (By.CSS_SELECTOR, ".base-card"),
+                (By.CSS_SELECTOR, ".jobs-search-results__list-item"),
+            ]
             
-            # Scroll to load more jobs with delays
-            print("DEBUG: Scrolling to load more jobs...")
-            for i in range(5):
-                driver.execute_script("window.scrollBy(0, 500)")
-                time.sleep(random.uniform(0.8, 1.5))  # Random delay between scrolls
+            for by, selector in selectors_to_try:
+                try:
+                    wait.until(EC.presence_of_all_elements_located((by, selector)))
+                    print(f"DEBUG: Job cards found with selector: {selector}")
+                    job_found = True
+                    break
+                except:
+                    continue
+            
+            if not job_found:
+                print("DEBUG: Job cards not found, but proceeding...")
+            
+            # Scroll more gradually to appear human-like
+            print("DEBUG: Scrolling to load more jobs (human-like)...")
+            for i in range(8):
+                print(f"DEBUG: Scroll iteration {i+1}/8")
+                driver.execute_script("window.scrollBy(0, 300)")
+                time.sleep(random.uniform(1.5, 3))  # Longer delays
             
             # Get page HTML
             html = driver.page_source
-            print(f"DEBUG: Page HTML fetched, size: {len(html)} bytes")
+            print(f"DEBUG: Successfully fetched page ({len(html)} bytes)")
+            
+            if len(html) < 5000:
+                print(f"WARNING: Page content seems small ({len(html)} bytes), might be blocked")
+                if attempt < max_retries - 1:
+                    continue
             
             return html
             
         except TimeoutException as e:
-            print(f"DEBUG: Timeout on attempt {attempt + 1}: {e}")
-            if attempt == max_retries - 1:
-                print(f"ERROR: Request timed out after {max_retries} attempts. LinkedIn may have blocked the request.")
+            print(f"ERROR: Selenium timeout on attempt {attempt + 1}: {str(e)[:100]}")
+            if attempt < max_retries - 1:
+                print(f"DEBUG: Retrying... ({attempt + 1}/{max_retries - 1})")
+                time.sleep(random.uniform(5, 10))
+                continue
+            else:
+                print("ERROR: All retries exhausted")
                 return None
-            continue
-            
+                
         except Exception as e:
-            print(f"DEBUG: Error on attempt {attempt + 1}: {e}")
+            print(f"ERROR: Selenium error on attempt {attempt + 1}: {str(e)[:100]}")
             import traceback
             traceback.print_exc()
-            if attempt == max_retries - 1:
-                return None
-            continue
+            if attempt < max_retries - 1:
+                time.sleep(random.uniform(5, 10))
+                continue
+            return None
             
         finally:
             if driver:
                 try:
                     driver.quit()
                     print("DEBUG: Browser closed")
+                    time.sleep(random.uniform(1, 2))
                 except:
                     pass
 
@@ -517,39 +584,60 @@ def scrape_linkedin_to_csv(url, output_path, max_jobs=50):
     print(f"DEBUG: Starting scrape for URL: {url}")
     
     try:
-        # Try Selenium first (renders JavaScript)
+        # Try Selenium first (renders JavaScript) with timeout handling
         print("DEBUG: Attempting to scrape with Selenium...")
-        html = fetch_html_selenium(url, timeout=30)
+        try:
+            html = fetch_html_selenium(url, timeout=45)
+        except TimeoutException:
+            print("DEBUG: Selenium timed out")
+            html = None
+        except Exception as e:
+            print(f"DEBUG: Selenium error: {str(e)[:100]}")
+            html = None
         
-        if html:
+        if html and len(html) > 5000:
             print(f"DEBUG: Fetched HTML via Selenium, length: {len(html)}")
             jobs = parse_linkedin_jobs(html, base_url=url, max_items=max_jobs)
             print(f"DEBUG: Parsed {len(jobs)} jobs from Selenium page")
+            
+            if jobs:
+                # Save and return early on success
+                print(f"DEBUG: Saving {len(jobs)} jobs to CSV...")
+                save_jobs_to_csv(jobs, output_path)
+                print(f"DEBUG: Successfully saved {len(jobs)} jobs to {output_path}")
+                return len(jobs)
+            else:
+                print("DEBUG: No jobs parsed from Selenium HTML")
         else:
-            print("DEBUG: Selenium failed, trying fallback HTTP request...")
-            html = fetch_html(url)
-            print(f"DEBUG: Fetched HTML via HTTP, length: {len(html)}")
-            jobs = parse_linkedin_jobs(html, base_url=url, max_items=max_jobs)
-            print(f"DEBUG: Parsed {len(jobs)} jobs from HTTP request")
+            if html:
+                print(f"WARNING: Selenium returned small response ({len(html) if html else 0} bytes)")
+            print("DEBUG: Selenium failed or returned insufficient data")
         
-        # If no jobs found, try Indian domain as fallback
-        if not jobs and 'www.linkedin.com' in url:
-            print("DEBUG: No jobs found on US domain, trying Indian domain as fallback...")
-            indian_url = url.replace('www.linkedin.com', 'in.linkedin.com')
-            print(f"DEBUG: Trying fallback URL: {indian_url}")
-            html_fallback = fetch_html_selenium(indian_url, timeout=30) or fetch_html(indian_url)
-            jobs = parse_linkedin_jobs(html_fallback, base_url=indian_url, max_items=max_jobs)
-            print(f"DEBUG: Parsed {len(jobs)} jobs from Indian domain")
+        # Try HTTP request if Selenium failed
+        print("DEBUG: Trying HTTP request as fallback...")
+        try:
+            html = fetch_html(url, timeout=20)
+            if html and len(html) > 5000:
+                print(f"DEBUG: Fetched HTML via HTTP, length: {len(html)}")
+                jobs = parse_linkedin_jobs(html, base_url=url, max_items=max_jobs)
+                print(f"DEBUG: Parsed {len(jobs)} jobs from HTTP request")
+                
+                if jobs:
+                    print(f"DEBUG: Saving {len(jobs)} jobs to CSV...")
+                    save_jobs_to_csv(jobs, output_path)
+                    print(f"DEBUG: Successfully saved {len(jobs)} jobs to {output_path}")
+                    return len(jobs)
+        except Exception as e:
+            print(f"DEBUG: HTTP request failed: {str(e)[:100]}")
         
-        if not jobs:
-            # Use mock data as final fallback
-            print("DEBUG: No real jobs found. Using mock data for testing...")
-            keyword = extract_keyword_from_url(url)
-            jobs = generate_mock_jobs(keyword=keyword, max_jobs=max_jobs)
-            print(f"DEBUG: Generated {len(jobs)} mock jobs for testing")
+        # Last resort: Use mock data
+        print("DEBUG: LinkedIn blocked or returned no results - using mock data")
+        keyword = extract_keyword_from_url(url)
+        jobs = generate_mock_jobs(keyword=keyword, max_jobs=max_jobs)
+        print(f"DEBUG: Generated {len(jobs)} mock jobs for testing")
         
-        # Save to CSV (without fetching individual descriptions for speed)
-        print(f"DEBUG: Saving {len(jobs)} jobs to CSV...")
+        # Save mock data
+        print(f"DEBUG: Saving {len(jobs)} mock jobs to CSV...")
         save_jobs_to_csv(jobs, output_path)
         print(f"DEBUG: Successfully saved {len(jobs)} jobs to {output_path}")
         return len(jobs)
