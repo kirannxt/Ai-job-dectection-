@@ -701,7 +701,11 @@ Location: {location or 'Not specified'}
     # Get model information
     model_info = get_detector_info()
     
-    return render_template('job_post_detector.html', username=session['username'], result=result, model_info=model_info)
+    # Get user's detection history
+    user_detections = get_user_detections(session['username'], limit=10)
+    user_prefs = get_user_preferences(session['username'])
+    
+    return render_template('job_post_detector.html', username=session['username'], result=result, model_info=model_info, user_detections=user_detections, preferences=user_prefs)
 
 @app.route('/model-info')
 def model_info():
