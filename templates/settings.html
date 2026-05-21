@@ -103,22 +103,7 @@
                         </label>
                     </div>
                     
-                    <div class="form-group" style="margin: 15px 0; padding-top: 15px; border-top: 1px solid #ddd;">
-                        <label style="display: block; margin-bottom: 10px;"><strong>Notifications:</strong></label>
-                        <label style="display: flex; align-items: center; margin-bottom: 8px;">
-                            <input type="checkbox" name="email_notifications" value="1" {% if preferences.email_notifications %}checked{% endif %} style="width: auto; margin-right: 10px;">
-                            <span>Email Notifications</span>
-                        </label>
-                        <!-- SMS/WhatsApp notifications removed - SMS feature disabled -->
-                        <!--
-                        <label style="display: flex; align-items: center;">
-                            <input type="checkbox" name="sms_notifications" value="1" {% if preferences.sms_notifications %}checked{% endif %} style="width: auto; margin-right: 10px;">
-                            <span>WhatsApp Notifications</span>
-                        </label>
-                        -->
-                    </div>
-                    
-                    <button type="submit" class="btn">Save Changes</button>
+                    <button type="submit" class="btn" style="margin-top: 15px;">Save Changes</button>
                 </form>
             </div>
             
@@ -137,6 +122,24 @@
                     </label>
                 </div>
                 <button class="btn">Save Changes</button>
+            </div>
+        </div>
+
+        <div class="content-grid" style="margin-top: 30px;">
+            <div class="card" style="visibility: hidden; pointer-events: none;"></div>
+            
+            <div class="card">
+                <h3>Notifications</h3>
+                <form method="POST">
+                    <div class="form-group" style="margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 10px;"><strong>Notifications:</strong></label>
+                        <label style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <input type="checkbox" name="email_notifications" value="1" {% if preferences.email_notifications %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Email Notifications</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="btn">Save Changes</button>
+                </form>
             </div>
         </div>
 
