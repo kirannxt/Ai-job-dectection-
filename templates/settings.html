@@ -186,19 +186,23 @@
             
             <div class="card">
                 <h3>Privacy</h3>
-                <div class="form-group" style="margin: 15px 0;">
-                    <label style="display: flex; align-items: center;">
-                        <input type="checkbox" checked style="width: auto; margin-right: 10px;">
-                        <span>Profile Public</span>
-                    </label>
-                </div>
-                <div class="form-group" style="margin: 15px 0;">
-                    <label style="display: flex; align-items: center;">
-                        <input type="checkbox" checked style="width: auto; margin-right: 10px;">
-                        <span>Show Activity Status</span>
-                    </label>
-                </div>
-                <button class="btn">Save Changes</button>
+                <form method="POST" id="privacyForm" onsubmit="return handlePrivacySubmit()">
+                    <div class="form-group" style="margin: 15px 0;">
+                        <label style="display: flex; align-items: center; margin-bottom: 10px;">
+                            <input type="checkbox" name="profile_public" value="1" {% if preferences.profile_public %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Profile Public</span>
+                        </label>
+                        <p style="font-size: 12px; color: #666; margin: 5px 0 0 30px;">Allow others to view your profile and job detection statistics</p>
+                    </div>
+                    <div class="form-group" style="margin: 15px 0;">
+                        <label style="display: flex; align-items: center; margin-bottom: 10px;">
+                            <input type="checkbox" name="show_activity_status" value="1" {% if preferences.show_activity_status %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Show Activity Status</span>
+                        </label>
+                        <p style="font-size: 12px; color: #666; margin: 5px 0 0 30px;">Display your last activity timestamp to other users</p>
+                    </div>
+                    <button type="submit" class="btn" style="margin-top: 15px;">Save Changes</button>
+                </form>
             </div>
             
             <div class="card">
@@ -525,6 +529,17 @@
             return true;
         }
 
+        function handlePrivacySubmit() {
+            // Save current state before submission
+            const formData = new FormData(document.getElementById('privacyForm'));
+            sessionStorage.setItem('privacyData', JSON.stringify({
+                profile_public: formData.has('profile_public') ? '1' : '0',
+                show_activity_status: formData.has('show_activity_status') ? '1' : '0'
+            }));
+            showToast('💾 Saving', 'Saving privacy settings...', 'info', 0);
+            return true;
+        }
+
         function handleNotificationsSubmit() {
             // Save current state before submission
             const formData = new FormData(document.getElementById('notificationsForm'));
@@ -557,6 +572,14 @@
                     }, 500);
                 }
                 
+                if (sessionStorage.getItem('privacyData')) {
+                    const data = JSON.parse(sessionStorage.getItem('privacyData'));
+                    sessionStorage.removeItem('privacyData');
+                    setTimeout(() => {
+                        showToast('✓ Success', 'Privacy settings saved successfully', 'success');
+                    }, 600);
+                }
+                
                 if (sessionStorage.getItem('notificationsData')) {
                     const data = JSON.parse(sessionStorage.getItem('notificationsData'));
                     sessionStorage.removeItem('notificationsData');
@@ -569,11 +592,18 @@
 
         // Also show success after forms submit
         const appearanceForm = document.getElementById('appearanceForm');
+        const privacyForm = document.getElementById('privacyForm');
         const notificationsForm = document.getElementById('notificationsForm');
         
         if (appearanceForm) {
             appearanceForm.addEventListener('submit', function() {
                 // State preservation handled in handleAppearanceSubmit()
+            });
+        }
+        
+        if (privacyForm) {
+            privacyForm.addEventListener('submit', function() {
+                // State preservation handled in handlePrivacySubmit()
             });
         }
         

@@ -58,6 +58,8 @@ def init_db():
             compact_view INTEGER DEFAULT 0,
             email_notifications INTEGER DEFAULT 1,
             sms_notifications INTEGER DEFAULT 0,
+            profile_public INTEGER DEFAULT 1,
+            show_activity_status INTEGER DEFAULT 1,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
@@ -261,19 +263,19 @@ def get_user_activities(username, limit=4):
 def get_user_preferences(username):
     user_id = get_user_id(username)
     if not user_id:
-        return {'dark_mode': 0, 'compact_view': 0, 'email_notifications': 1, 'sms_notifications': 0}
+        return {'dark_mode': 0, 'compact_view': 0, 'email_notifications': 1, 'sms_notifications': 0, 'profile_public': 1, 'show_activity_status': 1}
     
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT dark_mode, compact_view, email_notifications, sms_notifications FROM user_preferences WHERE user_id = ?', (user_id,))
+    cursor.execute('SELECT dark_mode, compact_view, email_notifications, sms_notifications, profile_public, show_activity_status FROM user_preferences WHERE user_id = ?', (user_id,))
     result = cursor.fetchone()
     conn.close()
     
     if result:
         return dict(result)
-    return {'dark_mode': 0, 'compact_view': 0, 'email_notifications': 1, 'sms_notifications': 0}
+    return {'dark_mode': 0, 'compact_view': 0, 'email_notifications': 1, 'sms_notifications': 0, 'profile_public': 1, 'show_activity_status': 1}
 
-def save_user_preferences(username, dark_mode, compact_view, email_notifications=1, sms_notifications=0):
+def save_user_preferences(username, dark_mode, compact_view, email_notifications=1, sms_notifications=0, profile_public=1, show_activity_status=1):
     user_id = get_user_id(username)
     if not user_id:
         return False
@@ -281,9 +283,9 @@ def save_user_preferences(username, dark_mode, compact_view, email_notifications
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT OR REPLACE INTO user_preferences (user_id, dark_mode, compact_view, email_notifications, sms_notifications)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (user_id, dark_mode, compact_view, email_notifications, sms_notifications))
+        INSERT OR REPLACE INTO user_preferences (user_id, dark_mode, compact_view, email_notifications, sms_notifications, profile_public, show_activity_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (user_id, dark_mode, compact_view, email_notifications, sms_notifications, profile_public, show_activity_status))
     conn.commit()
     conn.close()
     return True

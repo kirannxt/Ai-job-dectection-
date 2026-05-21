@@ -536,23 +536,35 @@ def settings():
         # Get current preferences to avoid resetting unsubmitted fields
         current_prefs = get_user_preferences(session['username'])
         
-        # Only update fields that were actually submitted in this form
-        # If dark_mode is in the form, it's from the Appearance form
+        # Determine which form was submitted based on field presence
         if 'dark_mode' in request.form:
+            # Appearance form was submitted
             dark_mode = int(request.form.get('dark_mode', 0))
             compact_view = int(request.form.get('compact_view', 0))
-            email_notifications = current_prefs['email_notifications']  # Keep current notification setting
+            email_notifications = current_prefs['email_notifications']
+            profile_public = current_prefs['profile_public']
+            show_activity_status = current_prefs['show_activity_status']
             log_activity(session['username'], 'settings', 'Updated appearance settings')
+        elif 'profile_public' in request.form:
+            # Privacy form was submitted
+            dark_mode = current_prefs['dark_mode']
+            compact_view = current_prefs['compact_view']
+            email_notifications = current_prefs['email_notifications']
+            profile_public = 1 if request.form.get('profile_public') else 0
+            show_activity_status = 1 if request.form.get('show_activity_status') else 0
+            log_activity(session['username'], 'settings', 'Updated privacy settings')
         else:
             # Notifications form was submitted
-            dark_mode = current_prefs['dark_mode']  # Keep current appearance settings
+            dark_mode = current_prefs['dark_mode']
             compact_view = current_prefs['compact_view']
             email_notifications = 1 if request.form.get('email_notifications') else 0
+            profile_public = current_prefs['profile_public']
+            show_activity_status = current_prefs['show_activity_status']
             log_activity(session['username'], 'settings', 'Updated notification settings')
         
         # SMS notifications removed
         sms_notifications = 0  # SMS REMOVED - Always False
-        save_user_preferences(session['username'], dark_mode, compact_view, email_notifications, sms_notifications)
+        save_user_preferences(session['username'], dark_mode, compact_view, email_notifications, sms_notifications, profile_public, show_activity_status)
         return redirect(url_for('settings'))
     
     preferences = get_user_preferences(session['username'])
