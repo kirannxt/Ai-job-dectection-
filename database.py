@@ -1001,7 +1001,35 @@ def delete_otp(username):
     conn.close()
     return True
 
-def register_device_token(phone, device_token, device_name=None):
+def delete_user(username):
+    """Delete user account and all associated data"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        # Get user_id
+        cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+        user_row = cursor.fetchone()
+        
+        if not user_row:
+            conn.close()
+            return {'success': False, 'message': 'User not found'}
+        
+        user_id = user_row['id']
+        
+        # Delete all associated data
+        cursor.execute('DELETE FROM job_detections WHERE user_id = ?', (user_id,))
+        cursor.execute('DELETE FROM user_activities WHERE user_id = ?', (user_id,))
+        cursor.execute('DELETE FROM user_preferences WHERE user_id = ?', (user_id,))
+        cursor.execute('DELETE FROM csv_uploads WHERE user_id = ?', (user_id,))
+        cursor.execute('DELETE FROM user_otp WHERE username = ?', (username,))
+        cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+        
+        conn.commit()
+        conn.close()
+        return {'success': True, 'message': 'User account and all data deleted successfully'}
+    except Exception as e:
+        conn.close()
+        return {'success': False, 'message': f'Failed to delete user: {str(e)}'}def register_device_token(phone, device_token, device_name=None):
     """Register a device token for Firebase Cloud Messaging"""
     conn = get_db()
     cursor = conn.cursor()

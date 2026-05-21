@@ -1,7 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory, send_file
 from datetime import timedelta, datetime
 from ml_model import process_job_post, get_detector_info, retrain_model
-from database import init_db, create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename, save_training_metrics, get_latest_training_metrics, get_all_training_metrics, get_training_statistics, save_contact_info, get_contact_info, send_notification, send_email, generate_otp, save_otp, verify_otp as verify_otp_db, is_otp_verified, delete_otp, send_otp_email, get_user_email, send_sms
+from database import init_db, create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename, save_training_metrics, get_latest_training_metrics, get_all_training_metrics, get_training_statistics, save_contact_info, get_contact_info, send_notification, send_email, generate_otp, save_otp, verify_otp as verify_otp_db, is_otp_verified, delete_otp, send_otp_email, get_user_email, send_sms, delete_user
 # SMS/Phone options removed: send_sms, register_device_token, get_device_tokens
 import os, csv, uuid
 import openpyxl
@@ -545,6 +545,56 @@ def settings():
     
     preferences = get_user_preferences(session['username'])
     return render_template('settings.html', username=session['username'], preferences=preferences)
+
+@app.route('/api/download-data')
+def download_data():
+    """Export user data as JSON"""
+    if 'username' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    try:
+        username = session['username']
+        user_profile = get_user_profile(username)
+        detections = get_user_detections(username, limit=1000)
+        activities = get_user_activities(username, limit=1000)
+        
+        # Prepare export data
+        export_data = {
+            'user_profile': dict(user_profile) if user_profile else {},
+            'job_detections': [dict(d) for d in detections],
+            'activities': [dict(a) for a in activities],
+            'export_date': datetime.now().isoformat()
+        }
+        
+        # For now, return as JSON for download
+        return jsonify(export_data)
+    except Exception as e:
+        return jsonify({'error': f'Failed to export data: {str(e)}'}), 500
+
+@app.route('/api/delete-account', methods=['POST'])
+def delete_account():
+    """Delete user account and all associated data"""
+    if 'username' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    try:
+        username = session['username']
+        
+        # Verify password
+        password = request.json.get('password', '')
+        if not verify_user(username, password):
+            return jsonify({'success': False, 'message': 'Invalid password'}), 401
+        
+        # Delete user account
+        result = delete_user(username)
+        if result['success']:
+            session.clear()
+            log_activity(username, 'account', 'Account deleted')
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
 
 @app.route('/logout')
 def logout():

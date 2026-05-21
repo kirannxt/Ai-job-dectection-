@@ -142,22 +142,22 @@
         <div class="content-grid" style="margin-top: 30px; grid-template-columns: repeat(3, 1fr);">
             <div class="card">
                 <h3>Account Settings</h3>
-                <p><strong>Session Timeout:</strong> 24 hours</p>
+                <p><strong>Session Timeout:</strong> <span id="sessionTimeoutValue">15</span> minutes</p>
                 <p><strong>Auto-Save:</strong> Enabled</p>
                 <p><strong>Cache:</strong> Enabled</p>
-                <button class="btn" style="margin-top: 15px;">Advanced Settings</button>
+                <button class="btn" style="margin-top: 15px;" onclick="showAdvancedSettings()">Advanced Settings</button>
             </div>
             
             <div class="card">
                 <h3>Data Management</h3>
                 <p>Manage your data and privacy settings.</p>
-                <button class="btn" style="margin-top: 15px; background: #dc3545;">Download Your Data</button>
+                <button class="btn" style="margin-top: 15px; background: #667eea;" onclick="downloadUserData()">Download Your Data</button>
             </div>
             
             <div class="card">
                 <h3>Danger Zone</h3>
                 <p>Irreversible and destructive actions.</p>
-                <button class="btn" style="margin-top: 15px; background: #dc3545;">Delete Account</button>
+                <button class="btn" style="margin-top: 15px; background: #dc3545;" onclick="showDeleteAccountConfirm()">Delete Account</button>
             </div>
         </div>
     </div>
@@ -256,6 +256,138 @@
         }
         
         window.addEventListener('load', startSessionMonitoring);
+
+        // Download user data function
+        function downloadUserData() {
+            if (!confirm('Are you sure you want to download your data? This will create a JSON file with all your profile information, job detections, and activities.')) {
+                return;
+            }
+            
+            fetch('/api/download-data')
+                .then(response => response.json())
+                .then(data => {
+                    // Create a blob from the data
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `user_data_${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    alert('Data downloaded successfully!');
+                })
+                .catch(error => {
+                    console.error('Error downloading data:', error);
+                    alert('Failed to download data. Please try again.');
+                });
+        }
+
+        // Show delete account confirmation
+        function showDeleteAccountConfirm() {
+            const deleteModal = document.getElementById('deleteAccountModal');
+            if (!deleteModal) {
+                // Create modal if it doesn't exist
+                createDeleteAccountModal();
+            }
+            document.getElementById('deleteAccountModal').style.display = 'flex';
+        }
+
+        // Create delete account confirmation modal
+        function createDeleteAccountModal() {
+            const modal = document.createElement('div');
+            modal.id = 'deleteAccountModal';
+            modal.style.cssText = `
+                display: none; 
+                position: fixed; 
+                top: 0; 
+                left: 0; 
+                width: 100%; 
+                height: 100%; 
+                background: rgba(0, 0, 0, 0.7); 
+                z-index: 10000; 
+                align-items: center; 
+                justify-content: center;
+            `;
+            modal.innerHTML = `
+                <div style="background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 450px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);">
+                    <h2 style="margin-top: 0; color: #dc3545; margin-bottom: 15px;">⚠️ Delete Account</h2>
+                    <p style="font-size: 16px; color: #333; margin: 15px 0;">This action cannot be undone. All of your data will be permanently deleted, including:</p>
+                    <ul style="text-align: left; color: #666; font-size: 14px; margin: 15px 0;">
+                        <li>Your profile and account information</li>
+                        <li>All job detection records</li>
+                        <li>Activity history</li>
+                        <li>Uploaded CSV files</li>
+                    </ul>
+                    <p style="color: #666; font-size: 14px; margin: 20px 0;">Please enter your password to confirm account deletion:</p>
+                    <input type="password" id="deletePassword" placeholder="Enter your password" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px; font-size: 14px;">
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button onclick="confirmDeleteAccount()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                            Delete Permanently
+                        </button>
+                        <button onclick="closeDeleteModal()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Confirm delete account
+        function confirmDeleteAccount() {
+            const password = document.getElementById('deletePassword').value;
+            
+            if (!password) {
+                alert('Please enter your password');
+                return;
+            }
+            
+            fetch('/api/delete-account', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password: password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Account deleted successfully. Redirecting to login...');
+                    window.location.href = '/login';
+                } else {
+                    alert('Error: ' + data.message);
+                    document.getElementById('deletePassword').value = '';
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting account:', error);
+                alert('Failed to delete account. Please try again.');
+            });
+        }
+
+        // Close delete modal
+        function closeDeleteModal() {
+            const modal = document.getElementById('deleteAccountModal');
+            if (modal) {
+                modal.style.display = 'none';
+                document.getElementById('deletePassword').value = '';
+            }
+        }
+
+        // Show advanced settings
+        function showAdvancedSettings() {
+            alert('Advanced Settings:\n\n• Session Timeout: 15 minutes\n• Auto-Save: Saves job detection results automatically\n• Cache: Stores recent searches for faster access\n\nThese settings are managed by the system and cannot be modified.');
+        }
+
+        // Close modal if clicked outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('deleteAccountModal');
+            if (modal && event.target === modal) {
+                closeDeleteModal();
+            }
+        });
     </script>
 </body>
 </html>
