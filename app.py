@@ -541,12 +541,12 @@ def settings():
         if 'dark_mode' in request.form:
             dark_mode = int(request.form.get('dark_mode', 0))
             compact_view = int(request.form.get('compact_view', 0))
-            email_notifications = current_prefs.email_notifications  # Keep current notification setting
+            email_notifications = current_prefs['email_notifications']  # Keep current notification setting
             log_activity(session['username'], 'settings', 'Updated appearance settings')
         else:
             # Notifications form was submitted
-            dark_mode = current_prefs.dark_mode  # Keep current appearance settings
-            compact_view = current_prefs.compact_view
+            dark_mode = current_prefs['dark_mode']  # Keep current appearance settings
+            compact_view = current_prefs['compact_view']
             email_notifications = 1 if request.form.get('email_notifications') else 0
             log_activity(session['username'], 'settings', 'Updated notification settings')
         
