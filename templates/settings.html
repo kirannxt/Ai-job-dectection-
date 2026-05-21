@@ -53,6 +53,82 @@
         body.compact-view .page-header p {
             font-size: 14px;
         }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .toast.success {
+            border-left: 4px solid #28a745;
+        }
+        .toast.error {
+            border-left: 4px solid #dc3545;
+        }
+        .toast.info {
+            border-left: 4px solid #667eea;
+        }
+        body.dark-mode .toast {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
+        .toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .toast-content {
+            flex: 1;
+        }
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .toast-message {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+        .toast-close {
+            cursor: pointer;
+            font-size: 18px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            flex-shrink: 0;
+        }
+        .toast-close:hover {
+            opacity: 1;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body class="dashboard-page{% if preferences.dark_mode %} dark-mode{% endif %}{% if preferences.compact_view %} compact-view{% endif %}">
@@ -80,7 +156,7 @@
         <div class="content-grid" style="grid-template-columns: repeat(3, 1fr);">
             <div class="card">
                 <h3>Appearance</h3>
-                <form method="POST">
+                <form method="POST" id="appearanceForm" onsubmit="return handleAppearanceSubmit()">
                     <div class="form-group" style="margin: 15px 0;">
                         <label style="display: block; margin-bottom: 10px;"><strong>Theme:</strong></label>
                         <label style="display: flex; align-items: center; margin-bottom: 8px;">
@@ -127,7 +203,7 @@
             
             <div class="card">
                 <h3>Notifications</h3>
-                <form method="POST">
+                <form method="POST" id="notificationsForm" onsubmit="return handleNotificationsSubmit()">
                     <div class="form-group" style="margin: 15px 0;">
                         <label style="display: block; margin-bottom: 10px;"><strong>Notifications:</strong></label>
                         <label style="display: flex; align-items: center; margin-bottom: 8px;">
@@ -162,6 +238,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
     <!-- Session Warning Modal -->
     <div id="sessionWarningModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 9999; align-items: center; justify-content: center;">
@@ -258,11 +337,60 @@
         
         window.addEventListener('load', startSessionMonitoring);
 
+        // Toast Notification System
+        function showToast(title, message, type = 'success', duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            const toastId = 'toast-' + Date.now();
+            
+            const icons = {
+                success: '✓',
+                error: '✕',
+                info: 'ℹ'
+            };
+            
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type]}</div>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <div class="toast-close" onclick="removeToast('${toastId}')">×</div>
+            `;
+            
+            container.appendChild(toast);
+            
+            if (duration > 0) {
+                setTimeout(() => removeToast(toastId), duration);
+            }
+        }
+
+        function removeToast(toastId) {
+            const toast = document.getElementById(toastId);
+            if (toast) {
+                toast.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }
+
+        // Show success message if settings were just saved
+        window.addEventListener('load', function() {
+            if (document.referrer.includes('/settings') || window.location.search.includes('saved')) {
+                setTimeout(() => {
+                    showToast('✓ Success', 'Settings saved successfully', 'success');
+                }, 500);
+            }
+        });
+
         // Download user data function
         function downloadUserData() {
             if (!confirm('Are you sure you want to download your data? This will create a JSON file with all your profile information, job detections, and activities.')) {
                 return;
             }
+            
+            showToast('📥 Downloading', 'Exporting your data...', 'info', 0);
             
             fetch('/api/download-data')
                 .then(response => response.json())
@@ -277,11 +405,12 @@
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-                    alert('Data downloaded successfully!');
+                    
+                    showToast('✓ Success', 'Your data has been downloaded successfully', 'success');
                 })
                 .catch(error => {
                     console.error('Error downloading data:', error);
-                    alert('Failed to download data. Please try again.');
+                    showToast('✕ Error', 'Failed to download data. Please try again.', 'error');
                 });
         }
 
@@ -341,7 +470,7 @@
             const password = document.getElementById('deletePassword').value;
             
             if (!password) {
-                alert('Please enter your password');
+                showToast('✕ Error', 'Please enter your password', 'error');
                 return;
             }
             
@@ -355,16 +484,18 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Account deleted successfully. Redirecting to login...');
-                    window.location.href = '/login';
+                    showToast('✓ Account Deleted', 'Account deleted successfully. Redirecting...', 'success', 2000);
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 2500);
                 } else {
-                    alert('Error: ' + data.message);
+                    showToast('✕ Error', data.message, 'error');
                     document.getElementById('deletePassword').value = '';
                 }
             })
             .catch(error => {
                 console.error('Error deleting account:', error);
-                alert('Failed to delete account. Please try again.');
+                showToast('✕ Error', 'Failed to delete account. Please try again.', 'error');
             });
         }
 
@@ -380,6 +511,56 @@
         // Show advanced settings
         function showAdvancedSettings() {
             alert('Advanced Settings:\n\n• Session Timeout: 15 minutes\n• Auto-Save: Saves job detection results automatically\n• Cache: Stores recent searches for faster access\n\nThese settings are managed by the system and cannot be modified.');
+        }
+
+        // Form submit handlers with toast notifications
+        function handleAppearanceSubmit() {
+            showToast('💾 Saving', 'Saving appearance settings...', 'info', 0);
+            return true;
+        }
+
+        function handleNotificationsSubmit() {
+            showToast('💾 Saving', 'Saving notification preferences...', 'info', 0);
+            return true;
+        }
+
+        // Display success message after form reload
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                // Page was restored from cache
+                showToast('✓ Success', 'Settings saved successfully', 'success');
+            }
+        });
+
+        // Show success message if page was reloaded after POST
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we should show a success message
+            const performanceData = window.performance.timing;
+            if (performanceData && performanceData.navigationStart > 0) {
+                // Check session storage for form submission
+                if (sessionStorage.getItem('formSubmitted')) {
+                    sessionStorage.removeItem('formSubmitted');
+                    setTimeout(() => {
+                        showToast('✓ Success', 'Settings saved successfully', 'success');
+                    }, 500);
+                }
+            }
+        });
+
+        // Also show success after forms submit
+        const appearanceForm = document.getElementById('appearanceForm');
+        const notificationsForm = document.getElementById('notificationsForm');
+        
+        if (appearanceForm) {
+            appearanceForm.addEventListener('submit', function() {
+                sessionStorage.setItem('formSubmitted', 'true');
+            });
+        }
+        
+        if (notificationsForm) {
+            notificationsForm.addEventListener('submit', function() {
+                sessionStorage.setItem('formSubmitted', 'true');
+            });
         }
 
         // Close modal if clicked outside

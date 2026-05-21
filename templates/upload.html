@@ -103,6 +103,84 @@
             border-radius: 6px;
             background: #fff;
         }
+        
+        /* Toast Notification Styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .toast.success {
+            border-left: 4px solid #28a745;
+        }
+        .toast.error {
+            border-left: 4px solid #dc3545;
+        }
+        .toast.info {
+            border-left: 4px solid #667eea;
+        }
+        body.dark-mode .toast {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
+        .toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .toast-content {
+            flex: 1;
+        }
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .toast-message {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+        .toast-close {
+            cursor: pointer;
+            font-size: 18px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            flex-shrink: 0;
+        }
+        .toast-close:hover {
+            opacity: 1;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
@@ -328,11 +406,82 @@
         </div>
     </div>
 
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
     <script>
+        // Toast Notification System
+        function showToast(title, message, type = 'success', duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            if (!container) {
+                console.error('Toast container not found');
+                return;
+            }
+            
+            const toastId = 'toast-' + Date.now();
+            const icons = {
+                success: '✓',
+                error: '✕',
+                info: 'ℹ'
+            };
+            
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type]}</div>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <div class="toast-close" onclick="removeToast('${toastId}')">×</div>
+            `;
+            
+            container.appendChild(toast);
+            
+            if (duration > 0) {
+                setTimeout(() => removeToast(toastId), duration);
+            }
+        }
+
+        function removeToast(toastId) {
+            const toast = document.getElementById(toastId);
+            if (toast) {
+                toast.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }
+
         function toggleUpload() {
             const el = document.getElementById('inline-upload');
             el.style.display = el.style.display === 'block' ? 'none' : 'block';
+            if (el.style.display === 'block') {
+                el.querySelector('input[name="csv_file"]').focus();
+            }
         }
+
+        // Show success toast when file is uploaded
+        window.addEventListener('load', function() {
+            // Check if page was reloaded after upload
+            if (sessionStorage.getItem('fileUploaded')) {
+                sessionStorage.removeItem('fileUploaded');
+                showToast('✓ Upload Successful', 'Your file has been uploaded. You can now train a model with it.', 'success');
+            }
+        });
+
+        // Hook into form submission to show toast
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadForms = document.querySelectorAll('form[enctype="multipart/form-data"]');
+            uploadForms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    const isValid = validateFile(e);
+                    if (isValid) {
+                        sessionStorage.setItem('fileUploaded', 'true');
+                        showToast('📤 Uploading', 'Uploading your file...', 'info', 0);
+                    }
+                });
+            });
+        });
 
         function viewFile(id, name) {
             const section = document.getElementById('view-section');
@@ -451,6 +600,9 @@
             
             closeAlgorithmModal();
             
+            // Show loading toast
+            showToast('⚙️ Training Model', `Starting training with ${algorithm.toUpperCase()}...`, 'info', 0);
+            
             // Disable button and show loading
             btn.disabled = true;
             btn.textContent = 'Training...';
@@ -474,6 +626,9 @@
                 if (data.success) {
                     statusDiv.className = 'alert alert-success';
                     statusDiv.textContent = '✓ ' + data.message;
+                    
+                    // Show success toast
+                    showToast('✓ Training Complete', `Model trained successfully with ${(parseFloat(data.metrics.accuracy) * 100).toFixed(2)}% accuracy`, 'success');
                     
                     // Change button to View Details
                     btn.textContent = 'View Details';
@@ -499,6 +654,9 @@
                     statusDiv.textContent = '✗ Training failed: ' + data.message;
                     btn.textContent = 'Train Model';
                     btn.disabled = false;
+                    
+                    // Show error toast
+                    showToast('✕ Training Failed', data.message || 'An error occurred during training', 'error');
                 }
             })
             .catch(error => {
@@ -506,6 +664,9 @@
                 statusDiv.textContent = '✗ Error: Failed to train model. Please try again.';
                 btn.textContent = 'Train Model';
                 btn.disabled = false;
+                
+                // Show error toast
+                showToast('✕ Error', 'Failed to train model. Please try again.', 'error');
                 console.error('Training error:', error);
             });
         }
