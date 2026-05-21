@@ -908,8 +908,10 @@
                     statusEl.textContent = '✓ ' + data.message;
                     button.textContent = 'Extract Data';
                     button.disabled = false;
-                    // Optionally close modal after success
-                    // setTimeout(() => closeExtractModal(), 2000);
+                    // Reload page after 2 seconds to refresh the upload list
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
                 } else {
                     statusEl.className = 'alert alert-danger';
                     statusEl.textContent = '✗ ' + (data.message || 'Unknown error occurred');
