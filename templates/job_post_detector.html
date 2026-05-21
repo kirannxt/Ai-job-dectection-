@@ -171,6 +171,18 @@
         body.dark-mode .form-section label {
             color: #e0e0e0;
         }
+        body.dark-mode #job_selector {
+            background: #1a1a1a !important;
+            color: #e0e0e0 !important;
+            border-color: #444 !important;
+        }
+        body.dark-mode #job_selector option {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        body.dark-mode .form-section label {
+            color: #e0e0e0 !important;
+        }
         body.dark-mode .page-header h1,
         body.dark-mode .page-header p,
         body.dark-mode .page-header a {
@@ -181,6 +193,15 @@
             background: #1a1a1a;
             color: #e0e0e0;
             border-color: #444;
+        }
+        body.dark-mode #job_selector {
+            background: #1a1a1a !important;
+            color: #e0e0e0 !important;
+            border-color: #444 !important;
+        }
+        body.dark-mode #job_selector option {
+            background: #1a1a1a;
+            color: #e0e0e0;
         }
         body.compact-view .form-section {
             padding: 20px;
@@ -291,11 +312,12 @@
                 
                 <!-- Job Selection Dropdown -->
                 <div class="form-group" style="margin-bottom: 25px;">
-                    <label for="job_selector">Select from Scraped Data (Optional)</label>
-                    <select id="job_selector" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px;">
-                        <option value="">-- Choose a job posting --</option>
+                    <label for="job_selector" style="color: #333; font-weight: 600;">Select from Scraped Data (Optional)</label>
+                    <select id="job_selector" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px; background: white; color: #333;">
+                        <option value="" style="color: #333;">-- Choose a job posting --</option>
                     </select>
                     <small style="color: #666; margin-top: 5px; display: block;">Select a job from your uploaded LinkedIn data to auto-fill the form</small>
+                    <div id="job-selector-status" style="margin-top: 8px; font-size: 13px; color: #666; display: none;"></div>
                 </div>
                 
                 <form method="POST" action="{{ url_for('job_post_detector') }}">
@@ -443,20 +465,46 @@
         // Load scraped job data for dropdown
         async function loadJobData() {
             try {
+                const selector = document.getElementById('job_selector');
+                const statusDiv = document.getElementById('job-selector-status');
+                
                 const response = await fetch('/api/scraped-jobs');
                 const data = await response.json();
                 
-                const selector = document.getElementById('job_selector');
+                if (!data.jobs || data.jobs.length === 0) {
+                    statusDiv.style.display = 'block';
+                    statusDiv.textContent = '⚠️ No extracted job data available. Upload a LinkedIn CSV file first.';
+                    statusDiv.style.color = '#ff9800';
+                    return;
+                }
                 
+                // Clear existing options except the first one
+                while (selector.options.length > 1) {
+                    selector.remove(1);
+                }
+                
+                // Add jobs to dropdown
                 data.jobs.forEach((job, index) => {
                     const option = document.createElement('option');
                     option.value = index;
-                    option.textContent = `${job.title} - ${job.company}`;
+                    option.textContent = `${job.title || 'No Title'} - ${job.company || 'No Company'}`;
                     option.dataset.job = JSON.stringify(job);
+                    option.style.color = '#333';
                     selector.appendChild(option);
                 });
+                
+                // Show how many jobs loaded
+                if (data.jobs.length > 0) {
+                    statusDiv.style.display = 'block';
+                    statusDiv.textContent = `✓ ${data.jobs.length} job(s) loaded from extracted data`;
+                    statusDiv.style.color = '#28a745';
+                }
             } catch (error) {
                 console.error('Error loading job data:', error);
+                const statusDiv = document.getElementById('job-selector-status');
+                statusDiv.style.display = 'block';
+                statusDiv.textContent = '❌ Error loading job data. Please refresh the page.';
+                statusDiv.style.color = '#dc3545';
             }
         }
 
