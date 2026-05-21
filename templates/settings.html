@@ -513,13 +513,24 @@
             alert('Advanced Settings:\n\n• Session Timeout: 15 minutes\n• Auto-Save: Saves job detection results automatically\n• Cache: Stores recent searches for faster access\n\nThese settings are managed by the system and cannot be modified.');
         }
 
-        // Form submit handlers with toast notifications
+        // Form submit handlers with toast notifications and state preservation
         function handleAppearanceSubmit() {
+            // Save current state before submission to prevent reset
+            const formData = new FormData(document.getElementById('appearanceForm'));
+            sessionStorage.setItem('appearanceData', JSON.stringify({
+                dark_mode: formData.get('dark_mode'),
+                compact_view: formData.get('compact_view')
+            }));
             showToast('💾 Saving', 'Saving appearance settings...', 'info', 0);
             return true;
         }
 
         function handleNotificationsSubmit() {
+            // Save current state before submission
+            const formData = new FormData(document.getElementById('notificationsForm'));
+            sessionStorage.setItem('notificationsData', JSON.stringify({
+                email_notifications: formData.has('email_notifications') ? '1' : '0'
+            }));
             showToast('💾 Saving', 'Saving notification preferences...', 'info', 0);
             return true;
         }
@@ -538,11 +549,20 @@
             const performanceData = window.performance.timing;
             if (performanceData && performanceData.navigationStart > 0) {
                 // Check session storage for form submission
-                if (sessionStorage.getItem('formSubmitted')) {
-                    sessionStorage.removeItem('formSubmitted');
+                if (sessionStorage.getItem('appearanceData')) {
+                    const data = JSON.parse(sessionStorage.getItem('appearanceData'));
+                    sessionStorage.removeItem('appearanceData');
                     setTimeout(() => {
-                        showToast('✓ Success', 'Settings saved successfully', 'success');
+                        showToast('✓ Success', 'Appearance settings saved successfully', 'success');
                     }, 500);
+                }
+                
+                if (sessionStorage.getItem('notificationsData')) {
+                    const data = JSON.parse(sessionStorage.getItem('notificationsData'));
+                    sessionStorage.removeItem('notificationsData');
+                    setTimeout(() => {
+                        showToast('✓ Success', 'Notification preferences saved successfully', 'success');
+                    }, 700);
                 }
             }
         });
@@ -553,13 +573,13 @@
         
         if (appearanceForm) {
             appearanceForm.addEventListener('submit', function() {
-                sessionStorage.setItem('formSubmitted', 'true');
+                // State preservation handled in handleAppearanceSubmit()
             });
         }
         
         if (notificationsForm) {
             notificationsForm.addEventListener('submit', function() {
-                sessionStorage.setItem('formSubmitted', 'true');
+                // State preservation handled in handleNotificationsSubmit()
             });
         }
 

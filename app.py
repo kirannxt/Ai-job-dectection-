@@ -533,14 +533,26 @@ def settings():
         return redirect(url_for('login'))
     
     if request.method == 'POST':
-        dark_mode = int(request.form.get('dark_mode', 0))
-        compact_view = int(request.form.get('compact_view', 0))
-        email_notifications = 1 if request.form.get('email_notifications') else 0
+        # Get current preferences to avoid resetting unsubmitted fields
+        current_prefs = get_user_preferences(session['username'])
+        
+        # Only update fields that were actually submitted in this form
+        # If dark_mode is in the form, it's from the Appearance form
+        if 'dark_mode' in request.form:
+            dark_mode = int(request.form.get('dark_mode', 0))
+            compact_view = int(request.form.get('compact_view', 0))
+            email_notifications = current_prefs.email_notifications  # Keep current notification setting
+            log_activity(session['username'], 'settings', 'Updated appearance settings')
+        else:
+            # Notifications form was submitted
+            dark_mode = current_prefs.dark_mode  # Keep current appearance settings
+            compact_view = current_prefs.compact_view
+            email_notifications = 1 if request.form.get('email_notifications') else 0
+            log_activity(session['username'], 'settings', 'Updated notification settings')
+        
         # SMS notifications removed
         sms_notifications = 0  # SMS REMOVED - Always False
-        # sms_notifications = 1 if request.form.get('sms_notifications') else 0
         save_user_preferences(session['username'], dark_mode, compact_view, email_notifications, sms_notifications)
-        log_activity(session['username'], 'settings', 'Updated appearance and notification settings')
         return redirect(url_for('settings'))
     
     preferences = get_user_preferences(session['username'])
