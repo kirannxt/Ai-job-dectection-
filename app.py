@@ -687,6 +687,14 @@ def model_info():
     user_prefs = get_user_preferences(session['username'])
     return render_template('model_info.html', username=session['username'], model_info=info, user_preferences=user_prefs)
 
+@app.route('/analyse')
+def analyse():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    
+    user_prefs = get_user_preferences(session['username'])
+    return render_template('analyse.html', username=session['username'], user_preferences=user_prefs)
+
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
     if 'username' not in session:
