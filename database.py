@@ -130,6 +130,29 @@ def init_db():
     conn.commit()
     conn.close()
 
+def migrate_db():
+    """Migrate database schema to add new columns if they don't exist"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Check if profile_public column exists in user_preferences
+        cursor.execute("PRAGMA table_info(user_preferences)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        # Add profile_public column if it doesn't exist
+        if 'profile_public' not in columns:
+            cursor.execute('ALTER TABLE user_preferences ADD COLUMN profile_public INTEGER DEFAULT 1')
+        
+        # Add show_activity_status column if it doesn't exist
+        if 'show_activity_status' not in columns:
+            cursor.execute('ALTER TABLE user_preferences ADD COLUMN show_activity_status INTEGER DEFAULT 1')
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Database migration error (may be harmless): {e}")
+
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
