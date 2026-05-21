@@ -1029,7 +1029,9 @@ def delete_user(username):
         return {'success': True, 'message': 'User account and all data deleted successfully'}
     except Exception as e:
         conn.close()
-        return {'success': False, 'message': f'Failed to delete user: {str(e)}'}def register_device_token(phone, device_token, device_name=None):
+        return {'success': False, 'message': f'Failed to delete user: {str(e)}'}
+
+def register_device_token(phone, device_token, device_name=None):
     """Register a device token for Firebase Cloud Messaging"""
     conn = get_db()
     cursor = conn.cursor()
