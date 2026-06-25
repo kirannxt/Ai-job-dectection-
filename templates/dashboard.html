@@ -419,7 +419,7 @@
             {% endif %}
         </div>
 
-        {% if training_history and training_history|length > 0 %}
+        {% if training_history and training_history|length > 0 and user_preferences.profile_public %}
         <div class="metrics-chart-container" style="margin-top: 40px;">
             <div style="display: flex; align-items: center; margin-bottom: 20px;">
                 <!-- <span style="font-size: 24px; margin-right: 10px;">📊</span> -->
@@ -479,7 +479,7 @@
                     → Go to Train Module
                 </a>
             </div>
-            {% else %}
+            {% elif user_preferences.show_activity_status %}
             <div class="card">
                 <h3>Training History</h3>
                 {% if training_history %}

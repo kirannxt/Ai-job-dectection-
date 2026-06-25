@@ -140,13 +140,17 @@ def migrate_db():
         cursor.execute("PRAGMA table_info(user_preferences)")
         columns = [column[1] for column in cursor.fetchall()]
         
-        # Add profile_public column if it doesn't exist
         if 'profile_public' not in columns:
             cursor.execute('ALTER TABLE user_preferences ADD COLUMN profile_public INTEGER DEFAULT 1')
         
-        # Add show_activity_status column if it doesn't exist
         if 'show_activity_status' not in columns:
             cursor.execute('ALTER TABLE user_preferences ADD COLUMN show_activity_status INTEGER DEFAULT 1')
+
+        # Add status column to users if it doesn't exist
+        cursor.execute("PRAGMA table_info(users)")
+        user_columns = [column[1] for column in cursor.fetchall()]
+        if 'status' not in user_columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'Active'")
         
         conn.commit()
         conn.close()
@@ -184,7 +188,25 @@ def verify_user(username, password):
                   (username, hash_password(password)))
     user = cursor.fetchone()
     conn.close()
+    if user and dict(user).get('status', 'Active') == 'Inactive':
+        return False
     return user is not None
+
+def get_user_status(username):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT status FROM users WHERE username = ?', (username,))
+    result = cursor.fetchone()
+    conn.close()
+    return result['status'] if result and result['status'] else 'Active'
+
+def update_user_status(username, status):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET status = ? WHERE username = ?', (status, username))
+    conn.commit()
+    conn.close()
+    return True
 
 def get_user_id(username):
     conn = get_db()
@@ -238,7 +260,7 @@ def get_user_detections(username, limit=10):
 def get_user_profile(username):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT id, username, email, phone, created_at FROM users WHERE username = ?', (username,))
+    cursor.execute('SELECT id, username, email, phone, created_at, status FROM users WHERE username = ?', (username,))
     user = cursor.fetchone()
     
     if not user:

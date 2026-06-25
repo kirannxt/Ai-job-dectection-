@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory, send_file
 from datetime import timedelta, datetime
 from ml_model import process_job_post, get_detector_info, retrain_model
-from database import init_db, migrate_db, create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename, save_training_metrics, get_latest_training_metrics, get_all_training_metrics, get_training_statistics, save_contact_info, get_contact_info, send_notification, send_email, generate_otp, save_otp, verify_otp as verify_otp_db, is_otp_verified, delete_otp, send_otp_email, get_user_email, send_sms, delete_user
+from database import init_db, migrate_db, create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename, save_training_metrics, get_latest_training_metrics, get_all_training_metrics, get_training_statistics, save_contact_info, get_contact_info, send_notification, send_email, generate_otp, save_otp, verify_otp as verify_otp_db, is_otp_verified, delete_otp, send_otp_email, get_user_email, send_sms, delete_user, update_user_status, get_user_status
 # SMS/Phone options removed: send_sms, register_device_token, get_device_tokens
 import os, csv, uuid
 import openpyxl
@@ -60,6 +60,10 @@ def login():
         password = request.form.get('password')
         
         if verify_user(username, password):
+            # Check if account is inactive
+            if get_user_status(username) == 'Inactive':
+                error = 'Your account is inactive. Please contact support.'
+                return render_template('login.html', error=error)
             # Check if user has email notifications disabled (OTP required at login)
             user_prefs = get_user_preferences(username)
             
@@ -453,12 +457,14 @@ def dashboard():
     latest_metrics = get_latest_training_metrics()
     training_history = get_all_training_metrics(limit=5)
     
+    user_prefs = get_user_preferences(session['username'])
     return render_template('dashboard.html', 
                          username=session['username'], 
                          recent_activities=recent_activities,
                          training_stats=training_stats,
                          latest_metrics=latest_metrics,
-                         training_history=training_history)
+                         training_history=training_history,
+                         user_preferences=user_prefs)
 
 @app.route('/profile')
 def profile():
@@ -477,30 +483,19 @@ def update_profile():
     
     new_username = request.json.get('username')
     account_status = request.json.get('accountStatus', 'Active')
-    member_since = request.json.get('memberSince')
-    total_detections = request.json.get('totalDetections', 0)
+    
+    # Save status to DB
+    update_user_status(session['username'], account_status)
     
     if new_username and new_username != session['username']:
         if update_username(session['username'], new_username):
             session['username'] = new_username
             log_activity(new_username, 'profile', 'Updated account information')
-            return jsonify({
-                'success': True, 
-                'username': new_username,
-                'accountStatus': account_status,
-                'memberSince': member_since,
-                'totalDetections': total_detections
-            })
+            return jsonify({'success': True, 'username': new_username, 'accountStatus': account_status})
         return jsonify({'success': False, 'message': 'Username already exists'})
     
     log_activity(session['username'], 'profile', 'Updated account information')
-    return jsonify({
-        'success': True, 
-        'username': session['username'],
-        'accountStatus': account_status,
-        'memberSince': member_since,
-        'totalDetections': total_detections
-    })
+    return jsonify({'success': True, 'username': session['username'], 'accountStatus': account_status})
 
 @app.route('/update-password', methods=['POST'])
 def update_password_route():
@@ -546,7 +541,7 @@ def settings():
             profile_public = current_prefs['profile_public']
             show_activity_status = current_prefs['show_activity_status']
             log_activity(session['username'], 'settings', 'Updated appearance settings')
-        elif 'profile_public' in request.form:
+        elif 'profile_public' in request.form or 'privacy_form' in request.form:
             # Privacy form was submitted
             dark_mode = current_prefs['dark_mode']
             compact_view = current_prefs['compact_view']

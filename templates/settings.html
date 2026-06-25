@@ -187,6 +187,7 @@
             <div class="card">
                 <h3>Privacy</h3>
                 <form method="POST" id="privacyForm" onsubmit="return handlePrivacySubmit()">
+                    <input type="hidden" name="privacy_form" value="1">
                     <div class="form-group" style="margin: 15px 0;">
                         <label style="display: flex; align-items: center; margin-bottom: 10px;">
                             <input type="checkbox" name="profile_public" value="1" {% if preferences.profile_public %}checked{% endif %} style="width: auto; margin-right: 10px;">
