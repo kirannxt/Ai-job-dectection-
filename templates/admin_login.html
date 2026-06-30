@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login – Ai-fake-job</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+    <style>
+        .admin-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+        }
+        .lock-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+            display: block;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="auth-page">
+    <div class="login-container">
+        <div style="text-align:center; margin-bottom: 20px;">
+            <img src="{{ url_for('static', filename='images/ai-fake-job-logo.png') }}"
+                 alt="Ai-fake-job Logo"
+                 style="width:120px; height:60px; object-fit:contain;">
+        </div>
+
+        <span class="lock-icon">🔐</span>
+        <div style="text-align:center; margin-bottom: 20px;">
+            <span class="admin-badge">Admin Panel</span>
+        </div>
+
+        <h1 style="text-align:center; margin-bottom: 28px;">Admin Login</h1>
+
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('admin_login') }}" style="max-width:400px; margin:0 auto;">
+            <div class="form-group">
+                <label for="username">Admin Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter admin username" required autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="password">Admin Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter admin password" required>
+            </div>
+            <button type="submit" class="btn">Login as Admin</button>
+        </form>
+
+        <p style="text-align:center; margin-top:24px; color:#999; font-size:13px;">
+            Not an admin? <a href="{{ url_for('login') }}" style="color:#667eea; text-decoration:none; font-weight:600;">Go to User Login</a>
+        </p>
+    </div>
+</body>
+</html>

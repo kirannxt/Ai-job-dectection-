@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory, send_file
 from datetime import timedelta, datetime
 from ml_model import process_job_post, get_detector_info, retrain_model
-from database import init_db, migrate_db, create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename, save_training_metrics, get_latest_training_metrics, get_all_training_metrics, get_training_statistics, save_contact_info, get_contact_info, send_notification, send_email, generate_otp, save_otp, verify_otp as verify_otp_db, is_otp_verified, delete_otp, send_otp_email, get_user_email, send_sms, delete_user, update_user_status, get_user_status
+from database import init_db, migrate_db, create_user, verify_user, save_job_detection, get_user_detections, get_user_profile, log_activity, get_user_activities, get_user_preferences, save_user_preferences, update_username, update_password, user_exists, save_csv_upload, get_user_csvs, delete_csv_upload, update_csv_filename, save_training_metrics, get_latest_training_metrics, get_all_training_metrics, get_training_statistics, save_contact_info, get_contact_info, send_notification, send_email, generate_otp, save_otp, verify_otp as verify_otp_db, is_otp_verified, delete_otp, send_otp_email, get_user_email, send_sms, delete_user, update_user_status, get_user_status, get_all_users
 # SMS/Phone options removed: send_sms, register_device_token, get_device_tokens
 import os, csv, uuid
 import openpyxl
@@ -56,9 +56,13 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
+        username = request.form.get('username', '').strip()
         password = request.form.get('password')
-        
+
+        # Redirect admin credentials to the admin login page
+        if username.lower() == ADMIN_USERNAME.lower():
+            return redirect(url_for('admin_login'))
+
         if verify_user(username, password):
             # Check if account is inactive
             if get_user_status(username) == 'Inactive':
@@ -114,14 +118,17 @@ You're now connected to your Ai-fake-job system.
             
             return redirect(url_for('dashboard'))
         else:
-            error = 'Invalid username or password'
+            error = 'Your account is deactivated kindly contact administrator'
             return render_template('login.html', error=error)
     
     return render_template('login.html')
 
 @app.route('/check-username', methods=['POST'])
 def check_username():
-    username = request.json.get('username')
+    username = request.json.get('username', '').strip()
+    # Block admin username from the regular login flow
+    if username.lower() == ADMIN_USERNAME.lower():
+        return jsonify({'exists': False, 'is_admin': True})
     exists = user_exists(username)
     return jsonify({'exists': exists})
 
@@ -1067,6 +1074,71 @@ def get_training_metrics():
         return jsonify({'success': True, 'metrics': metrics})
     except Exception as e:
         return jsonify({'error': f'Failed to get metrics: {str(e)}'}), 500
+
+
+# ─── Admin Credentials (hardcoded) ───────────────────────────────────────────
+ADMIN_USERNAME = 'admin'
+ADMIN_PASSWORD = 'Admin@123'
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session['admin_logged_in'] = True
+            return redirect(url_for('admin_dashboard'))
+        return render_template('admin_login.html', error='Invalid admin credentials')
+    return render_template('admin_login.html')
+
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('admin_login'))
+
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('admin_login'))
+    users = get_all_users()
+    total = len(users)
+    active = sum(1 for u in users if u.get('status', 'Active') == 'Active')
+    inactive = total - active
+    return render_template('admin_dashboard.html',
+                           users=users,
+                           total=total,
+                           active=active,
+                           inactive=inactive)
+
+
+@app.route('/admin/api/users')
+def admin_api_users():
+    """Live JSON endpoint polled by the admin dashboard for real-time updates"""
+    if not session.get('admin_logged_in'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    users = get_all_users()
+    total = len(users)
+    active = sum(1 for u in users if u.get('status', 'Active') == 'Active')
+    inactive = total - active
+    return jsonify({'users': users, 'total': total, 'active': active, 'inactive': inactive})
+
+
+@app.route('/admin/api/update-status', methods=['POST'])
+def admin_update_status():
+    """Allow admin to toggle a user's Active/Inactive status"""
+    if not session.get('admin_logged_in'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json() or {}
+    username = data.get('username')
+    status = data.get('status')
+    if not username or status not in ('Active', 'Inactive'):
+        return jsonify({'success': False, 'message': 'Invalid data'}), 400
+    update_user_status(username, status)
+    return jsonify({'success': True})
 
 
 # Error Handlers
