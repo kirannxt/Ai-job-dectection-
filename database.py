@@ -1120,3 +1120,29 @@ def delete_otp(username):
     conn.commit()
     conn.close()
     return True
+
+
+def get_all_users():
+    """Get all registered users with their details for admin dashboard"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT
+            u.id,
+            u.username,
+            u.email,
+            u.phone,
+            u.created_at,
+            COALESCE(u.status, 'Active') AS status,
+            (
+                SELECT COUNT(*) FROM job_detections jd WHERE jd.user_id = u.id
+            ) AS total_detections,
+            (
+                SELECT MAX(ua.created_at) FROM user_activities ua WHERE ua.user_id = u.id
+            ) AS last_active
+        FROM users u
+        ORDER BY u.created_at DESC
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]

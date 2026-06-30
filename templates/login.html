@@ -78,6 +78,9 @@
                     continueBtn.style.display = 'none';
                     loginBtn.style.display = 'block';
                     passwordInput.focus();
+                } else if (data.is_admin) {
+                    // Admin username — redirect to admin login
+                    window.location.href = '/admin/login';
                 } else {
                     usernameError.textContent = 'Username does not exist';
                     usernameError.style.display = 'block';
