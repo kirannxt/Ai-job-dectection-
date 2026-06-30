@@ -28,7 +28,10 @@
             
             <div class="form-group" id="passwordGroup" style="display: none;">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password">
+                <div class="password-field">
+                    <input type="password" id="password" name="password">
+                    <button type="button" class="password-toggle" data-password-toggle="password"></button>
+                </div>
                 <span id="passwordError" style="color: red; font-size: 12px; display: none;"></span>
             </div>
             
@@ -108,5 +111,6 @@
             passwordError.style.display = 'none';
         });
     </script>
+    <script src="{{ url_for('static', filename='js/password-toggle.js') }}"></script>
 </body>
 </html>

@@ -456,7 +456,10 @@
                         <li>Uploaded CSV files</li>
                     </ul>
                     <p style="color: #666; font-size: 14px; margin: 20px 0;">Please enter your password to confirm account deletion:</p>
-                    <input type="password" id="deletePassword" placeholder="Enter your password" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px; font-size: 14px;">
+                    <div class="password-field" style="margin-bottom: 15px;">
+                        <input type="password" id="deletePassword" placeholder="Enter your password" style="width: 100%; padding: 10px 46px 10px 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px;">
+                        <button type="button" class="password-toggle" data-password-toggle="deletePassword"></button>
+                    </div>
                     <div style="display: flex; gap: 10px; justify-content: center;">
                         <button onclick="confirmDeleteAccount()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
                             Delete Permanently
@@ -622,5 +625,6 @@
             }
         });
     </script>
+    <script src="{{ url_for('static', filename='js/password-toggle.js') }}"></script>
 </body>
 </html>
