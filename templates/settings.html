@@ -380,15 +380,6 @@
             }
         }
 
-        // Show success message if settings were just saved
-        window.addEventListener('load', function() {
-            if (document.referrer.includes('/settings') || window.location.search.includes('saved')) {
-                setTimeout(() => {
-                    showToast('✓ Success', 'Settings saved successfully', 'success');
-                }, 500);
-            }
-        });
-
         // Download user data function
         function downloadUserData() {
             if (!confirm('Are you sure you want to download your data? This will create a JSON file with all your profile information, job detections, and activities.')) {
@@ -554,14 +545,6 @@
             return true;
         }
 
-        // Display success message after form reload
-        window.addEventListener('pageshow', function(event) {
-            if (event.persisted) {
-                // Page was restored from cache
-                showToast('✓ Success', 'Settings saved successfully', 'success');
-            }
-        });
-
         // Show success message if page was reloaded after POST
         document.addEventListener('DOMContentLoaded', function() {
             // Check if we should show a success message
@@ -572,7 +555,7 @@
                     const data = JSON.parse(sessionStorage.getItem('appearanceData'));
                     sessionStorage.removeItem('appearanceData');
                     setTimeout(() => {
-                        showToast('✓ Success', 'Appearance settings saved successfully', 'success');
+                        showToast(' Success', 'Appearance settings saved successfully', 'success');
                     }, 500);
                 }
                 
@@ -580,7 +563,7 @@
                     const data = JSON.parse(sessionStorage.getItem('privacyData'));
                     sessionStorage.removeItem('privacyData');
                     setTimeout(() => {
-                        showToast('✓ Success', 'Privacy settings saved successfully', 'success');
+                        showToast(' Success', 'Privacy settings saved successfully', 'success');
                     }, 600);
                 }
                 
@@ -588,7 +571,7 @@
                     const data = JSON.parse(sessionStorage.getItem('notificationsData'));
                     sessionStorage.removeItem('notificationsData');
                     setTimeout(() => {
-                        showToast('✓ Success', 'Notification preferences saved successfully', 'success');
+                        showToast(' Success', 'Notification preferences saved successfully', 'success');
                     }, 700);
                 }
             }
