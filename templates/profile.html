@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
     <style>
         body.dark-mode {
             background: #1a1a1a;
@@ -115,12 +116,13 @@
 <body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
     <nav class="navbar">
         <div class="navbar-content">
-            <h2>Flask App</h2>
+            <h2>Ai-fake-job</h2>
             <ul class="navbar-menu">
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('profile') }}">Profile</a></li>
                 <li><a href="{{ url_for('job_post_detector') }}">Job Detector</a></li>
-                <li><a href="{{ url_for('upload') }}">File Manager</a></li>
+                <li><a href="{{ url_for('upload') }}">Train Module</a></li>
+                <li><a href="{{ url_for('analyse') }}">Analysis</a></li>
                 <li><a href="{{ url_for('settings') }}">Settings</a></li>
                 <li><a href="{{ url_for('logout') }}" class="logout">Logout</a></li>
             </ul>
@@ -137,7 +139,7 @@
             <div class="card">
                 <h3>Account Information</h3>
                 <p><strong>Username:</strong> <span id="displayUsername">{{ user.username }}</span></p>
-                <p><strong>Account Status:</strong> <span id="displayStatus">Active</span></p>
+                <p><strong>Account Status:</strong> <span id="displayStatus">{{ user.status or 'Active' }}</span></p>
                 <p><strong>Member Since:</strong> <span id="displayMemberSince">{{ user.created_at[:10] }}</span></p>
                 <p><strong>Total Detections:</strong> <span id="displayDetections">{{ user.total_detections }}</span></p>
                 <button class="btn" style="margin-top: 15px;" onclick="openModal('accountModal')">Edit Profile</button>
@@ -153,8 +155,11 @@
             
             <div class="card">
                 <h3>Contact Information</h3>
-                <p><strong>Email:</strong> <span id="displayEmail">{{ username }}@example.com</span></p>
-                <p><strong>Phone:</strong> <span id="displayPhone">Not set</span></p>
+                <p><strong>Email:</strong> <span id="displayEmail">{{ user.email or username + '@example.com' }}</span></p>
+                <!-- WhatsApp/Phone feature removed - SMS disabled -->
+                <!--
+                <p><strong>WhatsApp:</strong> <span id="displayPhone">{{ user.phone or 'Not set' }}</span></p>
+                -->
                 <p><strong>Country:</strong> <span id="displayCountry">United States</span></p>
                 <button class="btn" style="margin-top: 15px;" onclick="openModal('contactModal')">Update Contact</button>
             </div>
@@ -197,18 +202,18 @@
                 <div class="form-group">
                     <label>Account Status</label>
                     <select id="accountStatus" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                        <option value="Suspended">Suspended</option>
+                        <option value="Active" {% if (user.status or 'Active') == 'Active' %}selected{% endif %}>Active</option>
+                        <option value="Inactive" {% if user.status == 'Inactive' %}selected{% endif %}>Inactive</option>
+                        <option value="Suspended" {% if user.status == 'Suspended' %}selected{% endif %}>Suspended</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Member Since</label>
-                    <input type="date" id="memberSince" value="{{ user.created_at[:10] }}">
+                    <input type="date" id="memberSince" value="{{ user.created_at[:10] }}" disabled style="background:#f5f5f5; cursor:not-allowed;">
                 </div>
                 <div class="form-group">
                     <label>Total Detections</label>
-                    <input type="number" id="totalDetections" value="{{ user.total_detections }}" min="0">
+                    <input type="number" id="totalDetections" value="{{ user.total_detections }}" min="0" readonly style="background:#f5f5f5; cursor:not-allowed;">
                 </div>
                 <button type="submit" class="btn">Update Account</button>
             </form>
@@ -246,12 +251,16 @@
             <form onsubmit="updateContact(event)">
                 <div class="form-group">
                     <label>Email</label>
-                    <input type="email" id="email" value="{{ username }}@example.com">
+                    <input type="email" id="email" value="{{ user.email or username + '@example.com' }}">
                 </div>
+                <!-- WhatsApp/Phone field removed - SMS feature disabled -->
+                <!--
                 <div class="form-group">
-                    <label>Phone</label>
-                    <input type="tel" id="phone" placeholder="Not set">
+                    <label>WhatsApp Number</label>
+                    <input type="tel" id="phone" placeholder="e.g., +918197420471" value="{{ user.phone or '' }}">
+                    <small style="color: #999; display: block; margin-top: 5px;">Include country code (e.g., +91 for India, +1 for USA)</small>
                 </div>
+                -->
                 <div class="form-group">
                     <label>Country</label>
                     <input type="text" id="country" value="United States">
@@ -285,21 +294,17 @@
             e.preventDefault();
             const username = document.getElementById('username').value;
             const accountStatus = document.getElementById('accountStatus').value;
-            const memberSince = document.getElementById('memberSince').value;
-            const totalDetections = document.getElementById('totalDetections').value;
             
             fetch('/update-profile', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username, accountStatus, memberSince, totalDetections})
+                body: JSON.stringify({username, accountStatus})
             })
             .then(res => res.json())
             .then(data => {
                 if(data.success) {
                     document.getElementById('displayUsername').textContent = data.username;
                     document.getElementById('displayStatus').textContent = data.accountStatus;
-                    document.getElementById('displayMemberSince').textContent = data.memberSince;
-                    document.getElementById('displayDetections').textContent = data.totalDetections;
                     closeModal('accountModal');
                     showToast('Account updated successfully!');
                 } else {
@@ -369,5 +374,99 @@
             });
         }
     </script>
-</body>
-</html>
+
+    <!-- Session Warning Modal -->
+    <div id="sessionWarningModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 400px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <h2 style="margin-top: 0; color: #e74c3c;">⏰ Session Expiring Soon</h2>
+            <p style="font-size: 16px; color: #333; margin: 15px 0;">Your session will expire in <span id="countdownTime">2:00</span> minutes due to inactivity.</p>
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Would you like to continue your session?</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button onclick="extendSession()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Continue Session
+                </button>
+                <button onclick="logoutNow()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Logout Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SESSION_TIMEOUT = 15;
+        const SESSION_WARNING_TIME = 13;
+        let sessionCheckInterval;
+        let countdownInterval;
+        let warningShown = false;
+        let loginTime = new Date().getTime();
+        
+        function startSessionMonitoring() {
+            sessionCheckInterval = setInterval(checkSessionStatus, 10000);
+            checkSessionStatus();
+        }
+        
+        function checkSessionStatus() {
+            const currentTime = new Date().getTime();
+            const elapsedMinutes = (currentTime - loginTime) / (1000 * 60);
+            
+            if (elapsedMinutes >= SESSION_TIMEOUT) {
+                clearInterval(sessionCheckInterval);
+                clearInterval(countdownInterval);
+                window.location.href = '/logout';
+                return;
+            }
+            
+            if (elapsedMinutes >= SESSION_WARNING_TIME && !warningShown) {
+                showSessionWarning();
+            }
+            
+            fetch('/check-session-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    clearInterval(sessionCheckInterval);
+                    clearInterval(countdownInterval);
+                    window.location.href = '/login';
+                    return;
+                }
+                return response.json();
+            })
+            .catch(error => console.log('Session check error:', error));
+        }
+        
+        function showSessionWarning() {
+            if (warningShown) return;
+            warningShown = true;
+            const modal = document.getElementById('sessionWarningModal');
+            modal.style.display = 'flex';
+            let remainingSeconds = (SESSION_TIMEOUT - SESSION_WARNING_TIME) * 60;
+            countdownInterval = setInterval(() => {
+                remainingSeconds--;
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                document.getElementById('countdownTime').textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                if (remainingSeconds <= 0) {
+                    clearInterval(countdownInterval);
+                    logoutNow();
+                }
+            }, 1000);
+        }
+        
+        function extendSession() {
+            warningShown = false;
+            clearInterval(countdownInterval);
+            document.getElementById('sessionWarningModal').style.display = 'none';
+            loginTime = new Date().getTime();
+            fetch('/check-session-status', { method: 'POST' });
+        }
+        
+        function logoutNow() {
+            clearInterval(sessionCheckInterval);
+            clearInterval(countdownInterval);
+            window.location.href = '/logout';
+        }
+        
+        window.addEventListener('load', startSessionMonitoring);
+    </script>

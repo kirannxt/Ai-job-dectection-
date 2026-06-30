@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
     <style>
         body.dark-mode {
             background: #1a1a1a;
@@ -52,17 +53,94 @@
         body.compact-view .page-header p {
             font-size: 14px;
         }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .toast.success {
+            border-left: 4px solid #28a745;
+        }
+        .toast.error {
+            border-left: 4px solid #dc3545;
+        }
+        .toast.info {
+            border-left: 4px solid #667eea;
+        }
+        body.dark-mode .toast {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
+        .toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .toast-content {
+            flex: 1;
+        }
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .toast-message {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+        .toast-close {
+            cursor: pointer;
+            font-size: 18px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            flex-shrink: 0;
+        }
+        .toast-close:hover {
+            opacity: 1;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body class="dashboard-page{% if preferences.dark_mode %} dark-mode{% endif %}{% if preferences.compact_view %} compact-view{% endif %}">
     <nav class="navbar">
         <div class="navbar-content">
-            <h2>Flask App</h2>
+            <h2>Ai-fake-job</h2>
             <ul class="navbar-menu">
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('profile') }}">Profile</a></li>
                 <li><a href="{{ url_for('job_post_detector') }}">Job Detector</a></li>
-                <li><a href="{{ url_for('upload') }}">File Manager</a></li>
+                <li><a href="{{ url_for('upload') }}">Train Module</a></li>
+                <li><a href="{{ url_for('analyse') }}">Analysis</a></li>
                 <li><a href="{{ url_for('settings') }}">Settings</a></li>
                 <li><a href="{{ url_for('logout') }}" class="logout">Logout</a></li>
             </ul>
@@ -75,10 +153,10 @@
             <p>Configure your application preferences</p>
         </div>
 
-        <div class="content-grid">
+        <div class="content-grid" style="grid-template-columns: repeat(3, 1fr);">
             <div class="card">
                 <h3>Appearance</h3>
-                <form method="POST">
+                <form method="POST" id="appearanceForm" onsubmit="return handleAppearanceSubmit()">
                     <div class="form-group" style="margin: 15px 0;">
                         <label style="display: block; margin-bottom: 10px;"><strong>Theme:</strong></label>
                         <label style="display: flex; align-items: center; margin-bottom: 8px;">
@@ -101,66 +179,448 @@
                             <span>Compact View</span>
                         </label>
                     </div>
-                    <button type="submit" class="btn">Save Changes</button>
+                    
+                    <button type="submit" class="btn" style="margin-top: 15px;">Save Changes</button>
+                </form>
+            </div>
+            
+            <div class="card">
+                <h3>Privacy</h3>
+                <form method="POST" id="privacyForm" onsubmit="return handlePrivacySubmit()">
+                    <input type="hidden" name="privacy_form" value="1">
+                    <div class="form-group" style="margin: 15px 0;">
+                        <label style="display: flex; align-items: center; margin-bottom: 10px;">
+                            <input type="checkbox" name="profile_public" value="1" {% if preferences.profile_public %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Profile Public</span>
+                        </label>
+                        <p style="font-size: 12px; color: #666; margin: 5px 0 0 30px;">Allow others to view your profile and job detection statistics</p>
+                    </div>
+                    <div class="form-group" style="margin: 15px 0;">
+                        <label style="display: flex; align-items: center; margin-bottom: 10px;">
+                            <input type="checkbox" name="show_activity_status" value="1" {% if preferences.show_activity_status %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Show Activity Status</span>
+                        </label>
+                        <p style="font-size: 12px; color: #666; margin: 5px 0 0 30px;">Display your last activity timestamp to other users</p>
+                    </div>
+                    <button type="submit" class="btn" style="margin-top: 15px;">Save Changes</button>
                 </form>
             </div>
             
             <div class="card">
                 <h3>Notifications</h3>
-                <div class="form-group" style="margin: 15px 0;">
-                    <label style="display: flex; align-items: center;">
-                        <input type="checkbox" checked style="width: auto; margin-right: 10px;">
-                        <span>Email Notifications</span>
-                    </label>
-                </div>
-                <div class="form-group" style="margin: 15px 0;">
-                    <label style="display: flex; align-items: center;">
-                        <input type="checkbox" style="width: auto; margin-right: 10px;">
-                        <span>SMS Notifications</span>
-                    </label>
-                </div>
-                <button class="btn">Save Changes</button>
-            </div>
-            
-            <div class="card">
-                <h3>Privacy</h3>
-                <div class="form-group" style="margin: 15px 0;">
-                    <label style="display: flex; align-items: center;">
-                        <input type="checkbox" checked style="width: auto; margin-right: 10px;">
-                        <span>Profile Public</span>
-                    </label>
-                </div>
-                <div class="form-group" style="margin: 15px 0;">
-                    <label style="display: flex; align-items: center;">
-                        <input type="checkbox" checked style="width: auto; margin-right: 10px;">
-                        <span>Show Activity Status</span>
-                    </label>
-                </div>
-                <button class="btn">Save Changes</button>
+                <form method="POST" id="notificationsForm" onsubmit="return handleNotificationsSubmit()">
+                    <div class="form-group" style="margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 10px;"><strong>Notifications:</strong></label>
+                        <label style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <input type="checkbox" name="email_notifications" value="1" {% if preferences.email_notifications %}checked{% endif %} style="width: auto; margin-right: 10px;">
+                            <span>Email Notifications</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="btn">Save Changes</button>
+                </form>
             </div>
         </div>
 
-        <div class="content-grid" style="margin-top: 30px;">
+        <div class="content-grid" style="margin-top: 30px; grid-template-columns: repeat(3, 1fr);">
             <div class="card">
                 <h3>Account Settings</h3>
-                <p><strong>Session Timeout:</strong> 24 hours</p>
+                <p><strong>Session Timeout:</strong> <span id="sessionTimeoutValue">15</span> minutes</p>
                 <p><strong>Auto-Save:</strong> Enabled</p>
                 <p><strong>Cache:</strong> Enabled</p>
-                <button class="btn" style="margin-top: 15px;">Advanced Settings</button>
+                <button class="btn" style="margin-top: 15px;" onclick="showAdvancedSettings()">Advanced Settings</button>
             </div>
             
             <div class="card">
                 <h3>Data Management</h3>
                 <p>Manage your data and privacy settings.</p>
-                <button class="btn" style="margin-top: 15px; background: #dc3545;">Download Your Data</button>
+                <button class="btn" style="margin-top: 15px; background: #667eea;" onclick="downloadUserData()">Download Your Data</button>
             </div>
             
             <div class="card">
                 <h3>Danger Zone</h3>
                 <p>Irreversible and destructive actions.</p>
-                <button class="btn" style="margin-top: 15px; background: #dc3545;">Delete Account</button>
+                <button class="btn" style="margin-top: 15px; background: #dc3545;" onclick="showDeleteAccountConfirm()">Delete Account</button>
             </div>
         </div>
     </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Session Warning Modal -->
+    <div id="sessionWarningModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 400px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <h2 style="margin-top: 0; color: #e74c3c;">⏰ Session Expiring Soon</h2>
+            <p style="font-size: 16px; color: #333; margin: 15px 0;">Your session will expire in <span id="countdownTime">2:00</span> minutes due to inactivity.</p>
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Would you like to continue your session?</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button onclick="extendSession()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Continue Session
+                </button>
+                <button onclick="logoutNow()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Logout Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SESSION_TIMEOUT = 15;
+        const SESSION_WARNING_TIME = 13;
+        let sessionCheckInterval;
+        let countdownInterval;
+        let warningShown = false;
+        let loginTime = new Date().getTime();
+        
+        function startSessionMonitoring() {
+            sessionCheckInterval = setInterval(checkSessionStatus, 10000);
+            checkSessionStatus();
+        }
+        
+        function checkSessionStatus() {
+            const currentTime = new Date().getTime();
+            const elapsedMinutes = (currentTime - loginTime) / (1000 * 60);
+            
+            if (elapsedMinutes >= SESSION_TIMEOUT) {
+                clearInterval(sessionCheckInterval);
+                clearInterval(countdownInterval);
+                window.location.href = '/logout';
+                return;
+            }
+            
+            if (elapsedMinutes >= SESSION_WARNING_TIME && !warningShown) {
+                showSessionWarning();
+            }
+            
+            fetch('/check-session-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    clearInterval(sessionCheckInterval);
+                    clearInterval(countdownInterval);
+                    window.location.href = '/login';
+                    return;
+                }
+                return response.json();
+            })
+            .catch(error => console.log('Session check error:', error));
+        }
+        
+        function showSessionWarning() {
+            if (warningShown) return;
+            warningShown = true;
+            const modal = document.getElementById('sessionWarningModal');
+            modal.style.display = 'flex';
+            let remainingSeconds = (SESSION_TIMEOUT - SESSION_WARNING_TIME) * 60;
+            countdownInterval = setInterval(() => {
+                remainingSeconds--;
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                document.getElementById('countdownTime').textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                if (remainingSeconds <= 0) {
+                    clearInterval(countdownInterval);
+                    logoutNow();
+                }
+            }, 1000);
+        }
+        
+        function extendSession() {
+            warningShown = false;
+            clearInterval(countdownInterval);
+            document.getElementById('sessionWarningModal').style.display = 'none';
+            loginTime = new Date().getTime();
+            fetch('/check-session-status', { method: 'POST' });
+        }
+        
+        function logoutNow() {
+            clearInterval(sessionCheckInterval);
+            clearInterval(countdownInterval);
+            window.location.href = '/logout';
+        }
+        
+        window.addEventListener('load', startSessionMonitoring);
+
+        // Toast Notification System
+        function showToast(title, message, type = 'success', duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            const toastId = 'toast-' + Date.now();
+            
+            const icons = {
+                success: '✓',
+                error: '✕',
+                info: 'ℹ'
+            };
+            
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type]}</div>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <div class="toast-close" onclick="removeToast('${toastId}')">×</div>
+            `;
+            
+            container.appendChild(toast);
+            
+            if (duration > 0) {
+                setTimeout(() => removeToast(toastId), duration);
+            }
+        }
+
+        function removeToast(toastId) {
+            const toast = document.getElementById(toastId);
+            if (toast) {
+                toast.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }
+
+        // Show success message if settings were just saved
+        window.addEventListener('load', function() {
+            if (document.referrer.includes('/settings') || window.location.search.includes('saved')) {
+                setTimeout(() => {
+                    showToast('✓ Success', 'Settings saved successfully', 'success');
+                }, 500);
+            }
+        });
+
+        // Download user data function
+        function downloadUserData() {
+            if (!confirm('Are you sure you want to download your data? This will create a JSON file with all your profile information, job detections, and activities.')) {
+                return;
+            }
+            
+            showToast('📥 Downloading', 'Exporting your data...', 'info', 0);
+            
+            fetch('/api/download-data')
+                .then(response => response.json())
+                .then(data => {
+                    // Create a blob from the data
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `user_data_${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    showToast('✓ Success', 'Your data has been downloaded successfully', 'success');
+                })
+                .catch(error => {
+                    console.error('Error downloading data:', error);
+                    showToast('✕ Error', 'Failed to download data. Please try again.', 'error');
+                });
+        }
+
+        // Show delete account confirmation
+        function showDeleteAccountConfirm() {
+            const deleteModal = document.getElementById('deleteAccountModal');
+            if (!deleteModal) {
+                // Create modal if it doesn't exist
+                createDeleteAccountModal();
+            }
+            document.getElementById('deleteAccountModal').style.display = 'flex';
+        }
+
+        // Create delete account confirmation modal
+        function createDeleteAccountModal() {
+            const modal = document.createElement('div');
+            modal.id = 'deleteAccountModal';
+            modal.style.cssText = `
+                display: none; 
+                position: fixed; 
+                top: 0; 
+                left: 0; 
+                width: 100%; 
+                height: 100%; 
+                background: rgba(0, 0, 0, 0.7); 
+                z-index: 10000; 
+                align-items: center; 
+                justify-content: center;
+            `;
+            modal.innerHTML = `
+                <div style="background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 450px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);">
+                    <h2 style="margin-top: 0; color: #dc3545; margin-bottom: 15px;">⚠️ Delete Account</h2>
+                    <p style="font-size: 16px; color: #333; margin: 15px 0;">This action cannot be undone. All of your data will be permanently deleted, including:</p>
+                    <ul style="text-align: left; color: #666; font-size: 14px; margin: 15px 0;">
+                        <li>Your profile and account information</li>
+                        <li>All job detection records</li>
+                        <li>Activity history</li>
+                        <li>Uploaded CSV files</li>
+                    </ul>
+                    <p style="color: #666; font-size: 14px; margin: 20px 0;">Please enter your password to confirm account deletion:</p>
+                    <input type="password" id="deletePassword" placeholder="Enter your password" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px; font-size: 14px;">
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button onclick="confirmDeleteAccount()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                            Delete Permanently
+                        </button>
+                        <button onclick="closeDeleteModal()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Confirm delete account
+        function confirmDeleteAccount() {
+            const password = document.getElementById('deletePassword').value;
+            
+            if (!password) {
+                showToast('✕ Error', 'Please enter your password', 'error');
+                return;
+            }
+            
+            fetch('/api/delete-account', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password: password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('✓ Account Deleted', 'Account deleted successfully. Redirecting...', 'success', 2000);
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 2500);
+                } else {
+                    showToast('✕ Error', data.message, 'error');
+                    document.getElementById('deletePassword').value = '';
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting account:', error);
+                showToast('✕ Error', 'Failed to delete account. Please try again.', 'error');
+            });
+        }
+
+        // Close delete modal
+        function closeDeleteModal() {
+            const modal = document.getElementById('deleteAccountModal');
+            if (modal) {
+                modal.style.display = 'none';
+                document.getElementById('deletePassword').value = '';
+            }
+        }
+
+        // Show advanced settings
+        function showAdvancedSettings() {
+            alert('Advanced Settings:\n\n• Session Timeout: 15 minutes\n• Auto-Save: Saves job detection results automatically\n• Cache: Stores recent searches for faster access\n\nThese settings are managed by the system and cannot be modified.');
+        }
+
+        // Form submit handlers with toast notifications and state preservation
+        function handleAppearanceSubmit() {
+            // Save current state before submission to prevent reset
+            const formData = new FormData(document.getElementById('appearanceForm'));
+            sessionStorage.setItem('appearanceData', JSON.stringify({
+                dark_mode: formData.get('dark_mode'),
+                compact_view: formData.get('compact_view')
+            }));
+            showToast('💾 Saving', 'Saving appearance settings...', 'info', 0);
+            return true;
+        }
+
+        function handlePrivacySubmit() {
+            // Save current state before submission
+            const formData = new FormData(document.getElementById('privacyForm'));
+            sessionStorage.setItem('privacyData', JSON.stringify({
+                profile_public: formData.has('profile_public') ? '1' : '0',
+                show_activity_status: formData.has('show_activity_status') ? '1' : '0'
+            }));
+            showToast('💾 Saving', 'Saving privacy settings...', 'info', 0);
+            return true;
+        }
+
+        function handleNotificationsSubmit() {
+            // Save current state before submission
+            const formData = new FormData(document.getElementById('notificationsForm'));
+            sessionStorage.setItem('notificationsData', JSON.stringify({
+                email_notifications: formData.has('email_notifications') ? '1' : '0'
+            }));
+            showToast('💾 Saving', 'Saving notification preferences...', 'info', 0);
+            return true;
+        }
+
+        // Display success message after form reload
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                // Page was restored from cache
+                showToast('✓ Success', 'Settings saved successfully', 'success');
+            }
+        });
+
+        // Show success message if page was reloaded after POST
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we should show a success message
+            const performanceData = window.performance.timing;
+            if (performanceData && performanceData.navigationStart > 0) {
+                // Check session storage for form submission
+                if (sessionStorage.getItem('appearanceData')) {
+                    const data = JSON.parse(sessionStorage.getItem('appearanceData'));
+                    sessionStorage.removeItem('appearanceData');
+                    setTimeout(() => {
+                        showToast('✓ Success', 'Appearance settings saved successfully', 'success');
+                    }, 500);
+                }
+                
+                if (sessionStorage.getItem('privacyData')) {
+                    const data = JSON.parse(sessionStorage.getItem('privacyData'));
+                    sessionStorage.removeItem('privacyData');
+                    setTimeout(() => {
+                        showToast('✓ Success', 'Privacy settings saved successfully', 'success');
+                    }, 600);
+                }
+                
+                if (sessionStorage.getItem('notificationsData')) {
+                    const data = JSON.parse(sessionStorage.getItem('notificationsData'));
+                    sessionStorage.removeItem('notificationsData');
+                    setTimeout(() => {
+                        showToast('✓ Success', 'Notification preferences saved successfully', 'success');
+                    }, 700);
+                }
+            }
+        });
+
+        // Also show success after forms submit
+        const appearanceForm = document.getElementById('appearanceForm');
+        const privacyForm = document.getElementById('privacyForm');
+        const notificationsForm = document.getElementById('notificationsForm');
+        
+        if (appearanceForm) {
+            appearanceForm.addEventListener('submit', function() {
+                // State preservation handled in handleAppearanceSubmit()
+            });
+        }
+        
+        if (privacyForm) {
+            privacyForm.addEventListener('submit', function() {
+                // State preservation handled in handlePrivacySubmit()
+            });
+        }
+        
+        if (notificationsForm) {
+            notificationsForm.addEventListener('submit', function() {
+                // State preservation handled in handleNotificationsSubmit()
+            });
+        }
+
+        // Close modal if clicked outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('deleteAccountModal');
+            if (modal && event.target === modal) {
+                closeDeleteModal();
+            }
+        });
+    </script>
 </body>
 </html>

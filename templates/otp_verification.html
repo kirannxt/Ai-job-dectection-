@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify OTP - Ai-fake-job</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth-page">
+    <div class="login-container">
+        <h1>Verify Your Phone Number</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 20px;">
+            We've sent a 6-digit OTP to your device or email
+        </p>
+        
+        {% if error %}
+            <div class="error">
+                {{ error }}
+                {% if attempts_left is defined %}
+                    <br><small style="margin-top: 5px; display: block;">Attempts remaining: {{ attempts_left }}/2</small>
+                {% endif %}
+            </div>
+        {% endif %}
+        
+        {% if success %}
+            <div class="success">
+                {{ success }}
+            </div>
+        {% endif %}
+        
+        <form method="POST" action="{{ url_for('verify_otp') }}" id="otpForm">
+            <div class="form-group">
+                <label for="otp">Enter 6-Digit OTP</label>
+                <input type="text" id="otp" name="otp" maxlength="6" inputmode="numeric" 
+                       placeholder="000000" required autocomplete="off"
+                       style="text-align: center; font-size: 24px; letter-spacing: 8px; font-weight: bold;">
+                <small style="color: #999; margin-top: 5px; display: block;">
+                    OTP will expire in 10 minutes from when it was sent
+                </small>
+            </div>
+            
+            <button type="submit" class="btn" id="verifyBtn" {% if attempts_exhausted %}disabled{% endif %}>
+                Verify OTP
+            </button>
+        </form>
+        
+        {% if show_regenerate or attempts_exhausted %}
+            <form method="POST" action="{{ url_for('regenerate_otp') }}" style="margin-top: 15px;">
+                <button type="submit" class="btn" style="background-color: #6c757d;">
+                    Regenerate OTP
+                </button>
+            </form>
+            <p style="text-align: center; color: #999; margin-top: 10px; font-size: 12px;">
+                {% if attempts_exhausted %}
+                    You've exceeded the maximum number of attempts. Request a new OTP.
+                {% else %}
+                    Need a new code? Click above to regenerate.
+                {% endif %}
+            </p>
+        {% endif %}
+        
+        <p style="text-align: center; margin-top: 20px; color: #666;">
+            <a href="{{ url_for('register') }}" style="color: #667eea; text-decoration: none; font-weight: 600;">
+                Back to Registration
+            </a>
+        </p>
+    </div>
+
+    <script>
+        // Allow only numeric input for OTP field
+        const otpInput = document.getElementById('otp');
+        
+        otpInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            
+            // Auto-submit when 6 digits are entered
+            if (e.target.value.length === 6) {
+                // Optional: Auto-submit, or let user click button
+                // document.getElementById('otpForm').submit();
+            }
+        });
+        
+        // Prevent non-numeric input
+        otpInput.addEventListener('keypress', (e) => {
+            if (!/[0-9]/.test(e.key)) {
+                e.preventDefault();
+            }
+        });
+        
+        // Focus on OTP input on page load
+        window.addEventListener('load', () => {
+            otpInput.focus();
+        });
+    </script>
+</body>
+</html>

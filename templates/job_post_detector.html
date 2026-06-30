@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Job Post Detector - Scam Detection</title>
+    <title>Ai-fake-job - Scam Detection</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
     <style>
         .detector-container {
-            max-width: 1000px;
+            max-width: 100%;
         }
         
         .result-box {
@@ -170,6 +171,18 @@
         body.dark-mode .form-section label {
             color: #e0e0e0;
         }
+        body.dark-mode #job_selector {
+            background: #1a1a1a !important;
+            color: #e0e0e0 !important;
+            border-color: #444 !important;
+        }
+        body.dark-mode #job_selector option {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        body.dark-mode .form-section label {
+            color: #e0e0e0 !important;
+        }
         body.dark-mode .page-header h1,
         body.dark-mode .page-header p,
         body.dark-mode .page-header a {
@@ -180,6 +193,15 @@
             background: #1a1a1a;
             color: #e0e0e0;
             border-color: #444;
+        }
+        body.dark-mode #job_selector {
+            background: #1a1a1a !important;
+            color: #e0e0e0 !important;
+            border-color: #444 !important;
+        }
+        body.dark-mode #job_selector option {
+            background: #1a1a1a;
+            color: #e0e0e0;
         }
         body.compact-view .form-section {
             padding: 20px;
@@ -208,17 +230,65 @@
             display: block !important;
             visibility: visible !important;
         }
+        .detection-history {
+            margin-top: 40px;
+        }
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .history-table th, .history-table td {
+            padding: 10px 12px;
+            border: 1px solid #dee2e6;
+            text-align: left;
+            font-size: 14px;
+        }
+        .history-table th {
+            background: #667eea;
+            color: white;
+        }
+        .history-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .history-table .fake-badge {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 12px;
+        }
+        .history-table .legitimate-badge {
+            background: #d4edda;
+            color: #155724;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 12px;
+        }
+        body.dark-mode .history-table tr:nth-child(even) {
+            background: #252525;
+        }
+        body.dark-mode .history-table td {
+            border-color: #444;
+            color: #e0e0e0;
+        }
+        body.dark-mode .detection-history h3 {
+            color: #e0e0e0 !important;
+        }
     </style>
 </head>
 <body class="dashboard-page{% if user_preferences.dark_mode %} dark-mode{% endif %}{% if user_preferences.compact_view %} compact-view{% endif %}">
     <nav class="navbar">
         <div class="navbar-content">
-            <h2>Flask App</h2>
+            <h2>Ai-fake-job</h2>
             <ul class="navbar-menu">
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('profile') }}">Profile</a></li>
                 <li><a href="{{ url_for('job_post_detector') }}">Job Detector</a></li>
-                <li><a href="{{ url_for('upload') }}">File Manager</a></li>
+                <li><a href="{{ url_for('upload') }}">Train Module</a></li>
+                <li><a href="{{ url_for('analyse') }}">Analysis</a></li>
                 <li><a href="{{ url_for('settings') }}">Settings</a></li>
                 <li><a href="{{ url_for('logout') }}" class="logout">Logout</a></li>
             </ul>
@@ -239,6 +309,16 @@
                 {% if error %}
                     <div class="error">{{ error }}</div>
                 {% endif %}
+                
+                <!-- Job Selection Dropdown -->
+                <div class="form-group" style="margin-bottom: 25px;">
+                    <label for="job_selector" style="color: #333; font-weight: 600;">Select from Scraped Data (Optional)</label>
+                    <select id="job_selector" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px; background: white; color: #333;">
+                        <option value="" style="color: #333;">-- Choose a job posting --</option>
+                    </select>
+                    <small style="color: #666; margin-top: 5px; display: block;">Select a job from your uploaded LinkedIn data to auto-fill the form</small>
+                    <div id="job-selector-status" style="margin-top: 8px; font-size: 13px; color: #666; display: none;"></div>
+                </div>
                 
                 <form method="POST" action="{{ url_for('job_post_detector') }}">
                     <div class="form-row">
@@ -341,7 +421,221 @@
                     </div>
                 {% endif %}
             {% endif %}
+
+            <!-- Detection History Section -->
+            {% if user_detections %}
+            <div class="detection-history form-section">
+                <h3 style="margin-bottom: 20px; color: #333;">📋 Your Detection History</h3>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Job Title</th>
+                            <th>Company</th>
+                            <th>Result</th>
+                            <th>Confidence</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for detection in user_detections %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ detection.job_title }}</td>
+                            <td>{{ detection.company_name }}</td>
+                            <td>
+                                {% if detection.prediction == 'Fake' %}
+                                    <span class="fake-badge">🚨 FAKE</span>
+                                {% else %}
+                                    <span class="legitimate-badge">✓ LEGITIMATE</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ "%.1f"|format(detection.confidence) }}%</td>
+                            <td>{{ detection.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
         </div>
     </div>
+
+    <script>
+        // Load scraped job data for dropdown
+        async function loadJobData() {
+            try {
+                const selector = document.getElementById('job_selector');
+                const statusDiv = document.getElementById('job-selector-status');
+                
+                const response = await fetch('/api/scraped-jobs');
+                const data = await response.json();
+                
+                if (!data.jobs || data.jobs.length === 0) {
+                    statusDiv.style.display = 'block';
+                    statusDiv.textContent = '⚠️ No extracted job data available. Upload a LinkedIn CSV file first.';
+                    statusDiv.style.color = '#ff9800';
+                    return;
+                }
+                
+                // Clear existing options except the first one
+                while (selector.options.length > 1) {
+                    selector.remove(1);
+                }
+                
+                // Add jobs to dropdown
+                data.jobs.forEach((job, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = `${job.title || 'No Title'} - ${job.company || 'No Company'}`;
+                    option.dataset.job = JSON.stringify(job);
+                    option.style.color = '#333';
+                    selector.appendChild(option);
+                });
+                
+                // Show how many jobs loaded
+                if (data.jobs.length > 0) {
+                    statusDiv.style.display = 'block';
+                    statusDiv.textContent = `✓ ${data.jobs.length} job(s) loaded from extracted data`;
+                    statusDiv.style.color = '#28a745';
+                }
+            } catch (error) {
+                console.error('Error loading job data:', error);
+                const statusDiv = document.getElementById('job-selector-status');
+                statusDiv.style.display = 'block';
+                statusDiv.textContent = '❌ Error loading job data. Please refresh the page.';
+                statusDiv.style.color = '#dc3545';
+            }
+        }
+
+        // Handle job selection
+        document.getElementById('job_selector').addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value && selectedOption.dataset.job) {
+                const job = JSON.parse(selectedOption.dataset.job);
+                
+                // Fill form fields
+                document.getElementById('job_title').value = job.title || '';
+                document.getElementById('company_name').value = job.company || '';
+                document.getElementById('job_description').value = job.description || '';
+                document.getElementById('location').value = job.location || '';
+                document.getElementById('salary').value = ''; // Salary not available in scraped data
+            }
+        });
+
+        // Load job data when page loads
+        document.addEventListener('DOMContentLoaded', loadJobData);
+
+        // Auto-refresh page after form submission to update detection history
+        window.addEventListener('load', function() {
+            // Check if we just submitted a form (page was reloaded after POST)
+            if (window.performance && window.performance.navigation.type === 1) {
+                // Page was reloaded/submitted - show a brief notification
+                sessionStorage.setItem('detectionSubmitted', 'true');
+            }
+            
+            // Show notification if detection was just submitted
+            if (sessionStorage.getItem('detectionSubmitted')) {
+                sessionStorage.removeItem('detectionSubmitted');
+                // The detection history will show the new detection automatically
+            }
+        });
+    </script>
+
+    <!-- Session Warning Modal -->
+    <div id="sessionWarningModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 400px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <h2 style="margin-top: 0; color: #e74c3c;">⏰ Session Expiring Soon</h2>
+            <p style="font-size: 16px; color: #333; margin: 15px 0;">Your session will expire in <span id="countdownTime">2:00</span> minutes due to inactivity.</p>
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Would you like to continue your session?</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button onclick="extendSession()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Continue Session
+                </button>
+                <button onclick="logoutNow()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    Logout Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SESSION_TIMEOUT = 15;
+        const SESSION_WARNING_TIME = 13;
+        let sessionCheckInterval;
+        let countdownInterval;
+        let warningShown = false;
+        let loginTime = new Date().getTime();
+        
+        function startSessionMonitoring() {
+            sessionCheckInterval = setInterval(checkSessionStatus, 10000);
+            checkSessionStatus();
+        }
+        
+        function checkSessionStatus() {
+            const currentTime = new Date().getTime();
+            const elapsedMinutes = (currentTime - loginTime) / (1000 * 60);
+            
+            if (elapsedMinutes >= SESSION_TIMEOUT) {
+                clearInterval(sessionCheckInterval);
+                clearInterval(countdownInterval);
+                window.location.href = '/logout';
+                return;
+            }
+            
+            if (elapsedMinutes >= SESSION_WARNING_TIME && !warningShown) {
+                showSessionWarning();
+            }
+            
+            fetch('/check-session-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    clearInterval(sessionCheckInterval);
+                    clearInterval(countdownInterval);
+                    window.location.href = '/login';
+                    return;
+                }
+                return response.json();
+            })
+            .catch(error => console.log('Session check error:', error));
+        }
+        
+        function showSessionWarning() {
+            if (warningShown) return;
+            warningShown = true;
+            const modal = document.getElementById('sessionWarningModal');
+            modal.style.display = 'flex';
+            let remainingSeconds = (SESSION_TIMEOUT - SESSION_WARNING_TIME) * 60;
+            countdownInterval = setInterval(() => {
+                remainingSeconds--;
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                document.getElementById('countdownTime').textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                if (remainingSeconds <= 0) {
+                    clearInterval(countdownInterval);
+                    logoutNow();
+                }
+            }, 1000);
+        }
+        
+        function extendSession() {
+            warningShown = false;
+            clearInterval(countdownInterval);
+            document.getElementById('sessionWarningModal').style.display = 'none';
+            loginTime = new Date().getTime();
+            fetch('/check-session-status', { method: 'POST' });
+        }
+        
+        function logoutNow() {
+            clearInterval(sessionCheckInterval);
+            clearInterval(countdownInterval);
+            window.location.href = '/logout';
+        }
+        
+        window.addEventListener('load', startSessionMonitoring);
+    </script>
 </body>
 </html>
