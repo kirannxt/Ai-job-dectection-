@@ -258,7 +258,7 @@
                             <a href="{{ url_for('csv_download', csv_id=f.id) }}"
                                class="btn-sm btn-dl" style="text-decoration:none;">Download</a>
                             <button class="btn-sm btn-train" 
-                                    onclick="trainModel({{ f.id }}, '{{ f.original_filename }}')"
+                                    onclick="trainModel({{ f.id }}, {{ f.original_filename|tojson }})"
                                     id="train-btn-{{ f.id }}">Train</button>
                             <form method="POST" action="{{ url_for('csv_delete', csv_id=f.id) }}"
                                   style="margin:0;" onsubmit="return confirm('Delete this file?')">
